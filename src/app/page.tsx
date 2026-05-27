@@ -28,7 +28,7 @@ import { useToast } from '@/hooks/use-toast'
 import { motion, AnimatePresence } from 'framer-motion'
 
 // ===================== TRANSLATIONS =====================
-    const languages = {
+    const translations = {
     badini: {
         appName: '7S SQUAD PSYAR',
         welcome: 'ب خێرهاتی',
