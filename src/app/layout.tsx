@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   title: "7S SQUAD PSYAR - Quiz App",
   description: "Kurdish Quiz Application - بەرنامەی کویزی کوردی",
   icons: {
-    icon: "/logo.svg",
+    icon: "/7ss.png",
   },
 };
 
