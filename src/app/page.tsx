@@ -1314,24 +1314,15 @@ function QuestionsSection() {
                             </div>
                             {/* Question Text */}
                             <p className="text-white/90 text-sm leading-relaxed font-bold">{getQText(q)}</p>
-                            {/* Options - compact 2x2 grid */}
+                            {/* Options - compact 2x2 grid - NO answer revealed */}
                             <div className="grid grid-cols-2 gap-1.5">
                               {[1, 2, 3, 4].map((optIdx) => {
-                                const isCorrect = optIdx === q.correctAnswer
                                 return (
                                   <div
                                     key={optIdx}
-                                    className={`px-2 py-2 rounded-lg text-[11px] transition-all duration-200 flex items-center gap-1.5 ${
-                                      isCorrect
-                                        ? 'bg-green-500/15 border border-green-500/25 text-green-300 font-bold'
-                                        : 'bg-white/[0.02] border border-white/[0.04] text-white/40'
-                                    }`}
+                                    className="px-2 py-2 rounded-lg text-[11px] transition-all duration-200 flex items-center gap-1.5 bg-white/[0.02] border border-white/[0.04] text-white/40"
                                   >
-                                    <span className={`w-4 h-4 rounded flex items-center justify-center text-[9px] font-black flex-shrink-0 ${
-                                      isCorrect
-                                        ? 'bg-green-500/25 text-green-400'
-                                        : 'bg-white/5 text-white/20'
-                                    }`}>
+                                    <span className="w-4 h-4 rounded flex items-center justify-center text-[9px] font-black flex-shrink-0 bg-white/5 text-white/20">
                                       {optionLabels[optIdx - 1]}
                                     </span>
                                     <span className="truncate leading-tight">{getOption(q, optIdx)}</span>
@@ -1789,7 +1780,7 @@ function QuizSection() {
 
   const optionLabels: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
 
-  const catName = lang === 'badini' ? currentQ.category.nameBadini : currentQ.category.nameSorani
+  const catName = currentQ ? (lang === 'badini' ? currentQ.category.nameBadini : currentQ.category.nameSorani) : ''
 
   return (
     <motion.div
@@ -1818,143 +1809,175 @@ function QuizSection() {
         </div>
       </div>
 
-      {/* Main Quiz Card - Single contained unit */}
-      <Card className="bg-[#0d1442]/90 backdrop-blur-xl border-white/10 shadow-2xl overflow-hidden">
-        <div className="h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-red-500" />
-        <CardContent className="p-4 space-y-3">
-          {/* Timer + Progress Row - compact */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CircularTimer timeLeft={timeLeft} maxTime={120} />
-            </div>
-            <div className="flex-1 mx-3">
-              {/* Progress bar */}
-              <div className="w-full bg-white/5 rounded-full h-1.5 mb-1">
-                <motion.div
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${((currentQuestionIndex + 1) / quizQuestions.length) * 100}%` }}
-                  transition={{ duration: 0.3 }}
-                />
-              </div>
-              <div className="text-center" dir="rtl">
-                <span className="text-white/30 text-[10px]">{currentQuestionIndex + 1} {t(lang, 'of')} {quizQuestions.length}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Question - compact */}
-          <div className="bg-white/[0.03] rounded-xl p-3 border border-white/[0.05]" dir="rtl">
-            <motion.p
-              key={currentQuestionIndex}
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              className="text-white text-[15px] font-bold leading-relaxed text-center"
-            >
-              {lang === 'badini' ? currentQ.textBadini : currentQ.textSorani}
-            </motion.p>
-          </div>
-
-          {/* Options - Always 2x2 grid, compact */}
-          <div className="grid grid-cols-2 gap-2">
-            {[1, 2, 3, 4].map((optIdx) => {
-              const isCorrect = isAnswered && optIdx === currentQ.correctAnswer
-              const isWrong = isAnswered && optIdx === selectedAnswer && optIdx !== currentQ.correctAnswer
-              const isOther = isAnswered && !isCorrect && !isWrong
-
-              return (
-                <motion.button
-                  key={optIdx}
-                  whileTap={!isAnswered ? { scale: 0.96 } : {}}
-                  onClick={() => handleAnswer(optIdx)}
-                  disabled={isAnswered}
-                  className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all duration-200 overflow-hidden ${
-                    isCorrect
-                      ? 'border-green-500/50 bg-green-500/15'
-                      : isWrong
-                      ? 'border-red-500/50 bg-red-500/15'
-                      : isOther
-                      ? 'border-white/[0.03] bg-white/[0.01] opacity-40'
-                      : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.07] hover:border-white/15 cursor-pointer active:scale-[0.96]'
-                  }`}
-                  dir="rtl"
-                >
-                  {/* Option label badge */}
-                  <span className={`w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-black flex-shrink-0 ${
-                    isCorrect
-                      ? 'bg-green-500/30 text-green-300'
-                      : isWrong
-                      ? 'bg-red-500/30 text-red-300'
-                      : 'bg-white/10 text-white/50'
-                  }`}>
-                    {optionLabels[optIdx]}
-                  </span>
-                  {/* Option text */}
-                  <span className={`text-[12px] font-bold leading-tight text-center ${
-                    isCorrect ? 'text-green-200' : isWrong ? 'text-red-200' : isOther ? 'text-white/30' : 'text-white/80'
-                  }`}>
-                    {getOptionText(currentQ, optIdx)}
-                  </span>
-                  {/* Result icon */}
-                  {isCorrect && (
-                    <div className="absolute top-1 left-1">
-                      <CheckCircle2 className="w-4 h-4 text-green-400" />
+      {/* Carousel Quiz - Swipe between questions */}
+      <div className="relative overflow-hidden rounded-2xl">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentQuestionIndex}
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -50 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+          >
+            <Card className="bg-[#0d1442]/95 backdrop-blur-xl border-white/10 shadow-2xl overflow-hidden">
+              <div className="h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-red-500" />
+              <CardContent className="p-4 space-y-3">
+                {/* Timer + Progress Row */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CircularTimer timeLeft={timeLeft} maxTime={120} />
+                  </div>
+                  <div className="flex-1 mx-3">
+                    <div className="w-full bg-white/5 rounded-full h-1.5 mb-1">
+                      <motion.div
+                        className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${((currentQuestionIndex + 1) / quizQuestions.length) * 100}%` }}
+                        transition={{ duration: 0.3 }}
+                      />
                     </div>
-                  )}
-                  {isWrong && (
-                    <div className="absolute top-1 left-1">
-                      <XCircle className="w-4 h-4 text-red-400" />
+                    <div className="text-center" dir="rtl">
+                      <span className="text-white/30 text-[10px]">{currentQuestionIndex + 1} {t(lang, 'of')} {quizQuestions.length}</span>
                     </div>
-                  )}
-                </motion.button>
-              )
-            })}
-          </div>
-
-          {/* Feedback + Next button - combined compact row */}
-          <AnimatePresence>
-            {isAnswered && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="space-y-2 overflow-hidden"
-              >
-                {/* Feedback badge */}
-                <div
-                  className={`flex items-center justify-center gap-1.5 py-2 rounded-lg ${
-                    selectedAnswer === currentQ.correctAnswer
-                      ? 'bg-green-500/10 border border-green-500/15'
-                      : 'bg-red-500/10 border border-red-500/15'
-                  }`}
-                  dir="rtl"
-                >
-                  {selectedAnswer === currentQ.correctAnswer ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-green-400" />
-                      <span className="text-green-300 font-bold text-xs">{t(lang, 'correct')}</span>
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="w-4 h-4 text-red-400" />
-                      <span className="text-red-300 font-bold text-xs">{t(lang, 'wrong')}</span>
-                    </>
-                  )}
+                  </div>
                 </div>
 
-                {/* Next button */}
-                <Button
-                  onClick={handleNext}
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-xl py-3 text-sm"
-                >
-                  {currentQuestionIndex + 1 >= quizQuestions.length ? t(lang, 'viewResults') : t(lang, 'nextQuestion')}
-                </Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </CardContent>
-      </Card>
+                {/* Question */}
+                <div className="bg-white/[0.03] rounded-xl p-3 border border-white/[0.05]" dir="rtl">
+                  <p className="text-white text-[15px] font-bold leading-relaxed text-center">
+                    {lang === 'badini' ? currentQ.textBadini : currentQ.textSorani}
+                  </p>
+                </div>
+
+                {/* Options - 2x2 grid with clear selection feedback */}
+                <div className="grid grid-cols-2 gap-2">
+                  {[1, 2, 3, 4].map((optIdx) => {
+                    const isCorrect = isAnswered && optIdx === currentQ.correctAnswer
+                    const isSelected = isAnswered && optIdx === selectedAnswer
+                    const isWrong = isSelected && optIdx !== currentQ.correctAnswer
+                    const isOther = isAnswered && !isCorrect && !isWrong
+
+                    return (
+                      <motion.button
+                        key={optIdx}
+                        whileTap={!isAnswered ? { scale: 0.94 } : {}}
+                        onClick={() => handleAnswer(optIdx)}
+                        disabled={isAnswered}
+                        className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all duration-300 min-h-[80px] justify-center ${
+                          isCorrect
+                            ? 'border-green-400/60 bg-green-500/20 shadow-lg shadow-green-500/20'
+                            : isWrong
+                            ? 'border-red-400/60 bg-red-500/20 shadow-lg shadow-red-500/20'
+                            : isOther
+                            ? 'border-white/[0.03] bg-white/[0.01] opacity-30'
+                            : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.08] hover:border-blue-400/30 cursor-pointer'
+                        }`}
+                        dir="rtl"
+                      >
+                        {/* Selected/correct ring animation */}
+                        {isCorrect && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center shadow-md"
+                          >
+                            <CheckCircle2 className="w-3 h-3 text-white" />
+                          </motion.div>
+                        )}
+                        {isWrong && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center shadow-md"
+                          >
+                            <XCircle className="w-3 h-3 text-white" />
+                          </motion.div>
+                        )}
+
+                        {/* Label badge */}
+                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-[12px] font-black flex-shrink-0 transition-colors ${
+                          isCorrect
+                            ? 'bg-green-500/30 text-green-200'
+                            : isWrong
+                            ? 'bg-red-500/30 text-red-200'
+                            : 'bg-white/10 text-white/40'
+                        }`}>
+                          {optionLabels[optIdx]}
+                        </span>
+
+                        {/* Option text */}
+                        <span className={`text-[12px] font-bold leading-tight text-center transition-colors ${
+                          isCorrect ? 'text-green-200' : isWrong ? 'text-red-200' : isOther ? 'text-white/20' : 'text-white/80'
+                        }`}>
+                          {getOptionText(currentQ, optIdx)}
+                        </span>
+                      </motion.button>
+                    )
+                  })}
+                </div>
+
+                {/* Feedback + Next - compact combined */}
+                <AnimatePresence>
+                  {isAnswered && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-2 overflow-hidden"
+                    >
+                      {/* Feedback badge */}
+                      <div
+                        className={`flex items-center justify-center gap-1.5 py-2 rounded-lg ${
+                          selectedAnswer === currentQ.correctAnswer
+                            ? 'bg-green-500/10 border border-green-500/15'
+                            : 'bg-red-500/10 border border-red-500/15'
+                        }`}
+                        dir="rtl"
+                      >
+                        {selectedAnswer === currentQ.correctAnswer ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 text-green-400" />
+                            <span className="text-green-300 font-bold text-xs">{t(lang, 'correct')}</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-4 h-4 text-red-400" />
+                            <span className="text-red-300 font-bold text-xs">{t(lang, 'wrong')}</span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Next button */}
+                      <Button
+                        onClick={handleNext}
+                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-xl py-3 text-sm"
+                      >
+                        {currentQuestionIndex + 1 >= quizQuestions.length ? t(lang, 'viewResults') : t(lang, 'nextQuestion')}
+                      </Button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Carousel dot indicators */}
+      <div className="flex items-center justify-center gap-1 mt-3">
+        {quizQuestions.map((_, i) => (
+          <div
+            key={i}
+            className={`rounded-full transition-all duration-300 ${
+              i === currentQuestionIndex
+                ? 'w-5 h-1.5 bg-gradient-to-r from-blue-500 to-purple-500'
+                : i < currentQuestionIndex
+                ? 'w-1.5 h-1.5 bg-green-400/40'
+                : 'w-1.5 h-1.5 bg-white/15'
+            }`}
+          />
+        ))}
+      </div>
     </motion.div>
   )
 }

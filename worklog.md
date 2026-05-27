@@ -90,3 +90,29 @@ Stage Summary:
 - No more scattered/messy layout in quiz options
 - White background issues fixed with aggressive dark backgrounds and overscroll prevention
 - All elements properly contained within dark cards
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Convert quiz to carousel/slider, hide correct answers in browse view, make selection clearly visible
+
+Work Log:
+- Analyzed screenshot with VLM - confirmed correct answers were being shown in browse view
+- Fixed QuestionsSection: removed green highlighting of correct answers in list view - all options now look the same (neutral)
+- Converted QuizSection to carousel/slider with AnimatePresence slide animation (x: 50 → 0 → -50)
+- Added carousel dot indicators at bottom showing current question position
+- Prerequisite dots (answered) show green, current shows blue-purple gradient, upcoming show white
+- Made selection feedback much more prominent:
+  - Correct answer: green border + bg + animated green circle badge at top-left corner
+  - Wrong answer: red border + bg + animated red circle badge at top-left corner
+  - Other options fade to 30% opacity
+  - hover:border-blue-400/30 for interactive feedback before answering
+- Added min-h-[80px] to option buttons for consistent sizing
+- Increased option label badge size (w-7 h-7) for better visibility
+- Added shadow-lg shadow-green-500/20 and shadow-red-500/20 for glow effects on correct/wrong
+
+Stage Summary:
+- Correct answers no longer revealed in browse view
+- Quiz is now a carousel with slide animation between questions
+- Selected options clearly highlighted with animated badges and glow effects
+- Dot indicators show progress through quiz
