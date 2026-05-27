@@ -9,12 +9,20 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselPrevious,
+  CarouselNext,
+} from '@/components/ui/carousel'
+import {
   UserPlus, Shield, Plus, Trash2, Trophy, CheckCircle2,
   XCircle, BookOpen, Languages, Search,
   Star, Zap, Sparkles, Eye, EyeOff,
   Gamepad2, Crown, Target, CircleDot, Medal,
   Users, ChevronDown, ChevronUp, Play, RotateCcw, ArrowLeft, ListChecks, BarChart3,
   Clock, Flame, Brain, MapPin, Atom, Globe2, Dumbbell, Lightbulb,
+  ChevronLeft, ChevronRight, Heart, MessageCircle, Share2,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -837,6 +845,8 @@ function QuestionsSection() {
   const [selectedCat, setSelectedCat] = useState<string>('')
   const [viewMode, setViewMode] = useState<'categories' | 'list'>('categories')
   const [searchTerm, setSearchTerm] = useState('')
+  const [activeSlide, setActiveSlide] = useState(0)
+  const [emblaApi, setEmblaApi] = useState<ReturnType<typeof useEmblaCarousel>[1] | null>(null)
   const { questions, loading, refetch } = useQuestions(selectedCat || undefined)
   const { playerName, setTab, setSelectedCategory, resetQuiz } = useAppStore()
   const { toast } = useToast()
@@ -873,6 +883,45 @@ function QuestionsSection() {
       })
     : questions
 
+  // Build carousel slides - each category gets its own slide
+  const carouselItems = [
+    { id: 'all', name: t(lang, 'allCategories'), nameKey: 'allCategories', gradient: 'from-blue-500 via-purple-500 to-red-500', iconBg: 'bg-gradient-to-br from-blue-500 via-purple-500 to-red-500', icon: <BookOpen className="w-10 h-10 text-white" />, qCount: totalQuestions, glow: 'shadow-purple-500/30' },
+    ...categories.map((cat) => {
+      const style = getCatStyle(cat.nameBadini)
+      return {
+        id: cat.id,
+        name: getCatName(cat),
+        nameKey: cat.nameBadini,
+        gradient: style.gradient,
+        iconBg: style.iconBg,
+        icon: style.icon,
+        qCount: cat._count?.questions || 0,
+        glow: style.glow,
+        borderColor: style.borderColor,
+      }
+    })
+  ]
+
+  // Auto-rotate carousel
+  useEffect(() => {
+    if (!emblaApi) return
+    const interval = setInterval(() => {
+      emblaApi.scrollNext()
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [emblaApi])
+
+  // Track active slide
+  useEffect(() => {
+    if (!emblaApi) return
+    const onSelect = () => {
+      setActiveSlide(emblaApi.selectedScrollSnap())
+    }
+    emblaApi.on('select', onSelect)
+    onSelect()
+    return () => { emblaApi.off('select', onSelect) }
+  }, [emblaApi])
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -880,7 +929,7 @@ function QuestionsSection() {
       exit={{ opacity: 0, y: -20 }}
       className="max-w-5xl mx-auto px-4 pt-4 pb-8 space-y-5"
     >
-      {/* Header with search */}
+      {/* Header */}
       <div className="space-y-3" dir="rtl">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -914,23 +963,9 @@ function QuestionsSection() {
             </Button>
           )}
         </div>
-
-        {/* Search Bar */}
-        {viewMode === 'list' && (
-          <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-            <Input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-white/[0.04] border-white/10 text-white placeholder:text-white/20 focus:border-purple-400/50 rounded-2xl h-11 text-sm pr-10 pl-3"
-              placeholder={t(lang, 'selectCategory')}
-              dir="rtl"
-            />
-          </div>
-        )}
       </div>
 
-      {/* Categories Grid View */}
+      {/* ========== CAROUSEL VIEW (Categories) ========== */}
       {viewMode === 'categories' && (
         <div className="space-y-5">
           {/* Stats Cards Row */}
@@ -967,66 +1002,108 @@ function QuestionsSection() {
             </motion.div>
           </div>
 
-          {/* Category Cards - Premium Design */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {/* All Categories Card */}
-            <motion.button
-              whileHover={{ scale: 1.04, y: -4 }}
-              whileTap={{ scale: 0.96 }}
-              onClick={() => { setSelectedCat(''); setViewMode('list'); refetch() }}
-              className="rounded-2xl p-4 border-2 border-purple-500/20 bg-gradient-to-br from-purple-500/10 via-blue-500/5 to-red-500/10 hover:border-purple-400/40 hover:from-purple-500/15 hover:via-blue-500/10 hover:to-red-500/15 transition-all text-center group relative overflow-hidden shadow-lg shadow-purple-500/10"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.1, type: 'spring' }}
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-red-500" />
-              <div className="relative">
-                <div className="mx-auto mb-3 w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-red-500 flex items-center justify-center shadow-xl shadow-purple-500/30 group-hover:shadow-2xl group-hover:shadow-purple-500/40 transition-shadow">
-                  <BookOpen className="w-8 h-8 text-white" />
-                </div>
-                <p className="text-white text-sm font-black mb-1" dir="rtl">{t(lang, 'allCategories')}</p>
-                <div className="flex items-center justify-center gap-1.5">
-                  <CircleDot className="w-2.5 h-2.5 text-purple-400" />
-                  <span className="text-purple-300/60 text-[10px] font-bold">{totalQuestions} {t(lang, 'questions')}</span>
-                </div>
-              </div>
-            </motion.button>
+          {/* ===== CAROUSEL: Category Slider ===== */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+          >
+            <div className="relative">
+              <Carousel
+                opts={{
+                  align: 'center',
+                  loop: true,
+                  dragFree: false,
+                }}
+                setApi={setEmblaApi}
+                className="w-full"
+              >
+                <CarouselContent className="-ml-4">
+                  {carouselItems.map((item, i) => (
+                    <CarouselItem key={item.id} className="pl-4 basis-[85%] sm:basis-[60%] md:basis-[45%]">
+                      <motion.div
+                        whileHover={{ scale: 1.02, y: -4 }}
+                        whileTap={{ scale: 0.97 }}
+                        className="h-full"
+                      >
+                        <div
+                          onClick={() => {
+                            if (item.id === 'all') {
+                              setSelectedCat('')
+                              setViewMode('list')
+                              refetch()
+                            } else {
+                              handleCategoryClick(item.id)
+                            }
+                          }}
+                          className={`rounded-3xl p-6 border-2 border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.01] hover:from-white/[0.07] hover:to-white/[0.03] hover:border-white/20 transition-all duration-300 text-center group relative overflow-hidden cursor-pointer h-full min-h-[240px] flex flex-col items-center justify-center`}
+                        >
+                          {/* Top gradient bar */}
+                          <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${item.gradient}`} />
+                          {/* Background glow */}
+                          <div className={`absolute inset-0 bg-gradient-to-br ${item.gradient} opacity-0 group-hover:opacity-[0.05] transition-opacity duration-500`} />
+                          {/* Floating particles effect */}
+                          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                            <div className={`absolute top-4 right-6 w-2 h-2 rounded-full bg-gradient-to-r ${item.gradient} opacity-20 animate-pulse`} />
+                            <div className={`absolute bottom-8 left-8 w-1.5 h-1.5 rounded-full bg-gradient-to-r ${item.gradient} opacity-15 animate-pulse`} style={{ animationDelay: '0.5s' }} />
+                            <div className={`absolute top-1/2 right-10 w-1 h-1 rounded-full bg-gradient-to-r ${item.gradient} opacity-10 animate-pulse`} style={{ animationDelay: '1s' }} />
+                          </div>
 
-            {/* Individual Category Cards */}
-            {categories.map((cat, i) => {
-              const style = getCatStyle(cat.nameBadini)
-              const qCount = cat._count?.questions || 0
-              return (
-                <motion.button
-                  key={cat.id}
-                  whileHover={{ scale: 1.04, y: -4 }}
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => handleCategoryClick(cat.id)}
-                  className={`rounded-2xl p-4 border-2 ${style.borderColor} bg-white/[0.02] hover:bg-white/[0.05] transition-all text-center group relative overflow-hidden shadow-lg ${style.glow}`}
-                  initial={{ opacity: 0, y: 15, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ delay: 0.15 + i * 0.06, type: 'spring', stiffness: 300 }}
-                >
-                  <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${style.gradient}`} />
-                  <div className={`absolute inset-0 bg-gradient-to-br ${style.gradient} opacity-0 group-hover:opacity-[0.04] transition-opacity duration-300`} />
-                  <div className="relative">
-                    <div className={`mx-auto mb-3 w-16 h-16 rounded-2xl ${style.iconBg} border border-white/5 flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
-                      {style.icon}
-                    </div>
-                    <p className="text-white text-sm font-black mb-1" dir="rtl">{getCatName(cat)}</p>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <CircleDot className={`w-2.5 h-2.5 bg-gradient-to-r ${style.gradient}`} />
-                      <span className="text-white/40 text-[10px] font-bold">{qCount} {t(lang, 'questions')}</span>
-                    </div>
-                    <div className="mt-2.5 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <Play className="w-3 h-3 text-green-400" />
-                      <span className="text-green-400/80 text-[10px] font-black">{t(lang, 'startQuiz')}</span>
-                    </div>
-                  </div>
-                </motion.button>
-              )
-            })}
-          </div>
+                          <div className="relative flex flex-col items-center">
+                            {/* Icon */}
+                            <div className={`mb-5 w-20 h-20 rounded-2xl ${item.id === 'all' ? item.iconBg : item.iconBg + ' border border-white/5'} flex items-center justify-center shadow-2xl ${item.glow} group-hover:scale-110 group-hover:shadow-3xl transition-all duration-500`}>
+                              {item.id === 'all'
+                                ? <BookOpen className="w-10 h-10 text-white" />
+                                : <div className="scale-125">{item.icon}</div>
+                              }
+                            </div>
+                            {/* Name */}
+                            <p className="text-white text-lg font-black mb-2 group-hover:text-white transition-colors" dir="rtl">{item.name}</p>
+                            {/* Question count */}
+                            <div className="flex items-center justify-center gap-1.5 mb-4">
+                              <CircleDot className={`w-2.5 h-2.5 ${item.id === 'all' ? 'text-purple-400' : ''}`} />
+                              <span className="text-white/40 text-xs font-bold">{item.qCount} {t(lang, 'questions')}</span>
+                            </div>
+                            {/* Points badge */}
+                            <div className="flex items-center justify-center gap-1 bg-yellow-500/10 border border-yellow-500/15 rounded-xl px-3 py-1.5 mb-4">
+                              <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                              <span className="text-yellow-300/70 text-[10px] font-bold">{t(lang, 'pointsPerQuestion')}</span>
+                            </div>
+                            {/* Play button - shows on hover */}
+                            <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-green-500/30">
+                                <Play className="w-4 h-4 text-white" />
+                              </div>
+                              <span className="text-green-400 text-xs font-black">{t(lang, 'startQuiz')}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+
+                {/* Navigation Arrows */}
+                <CarouselPrevious className="absolute -left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/10 backdrop-blur-xl border-white/10 text-white hover:bg-white/20 hover:text-white shadow-xl z-10 disabled:opacity-30" />
+                <CarouselNext className="absolute -right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/10 backdrop-blur-xl border-white/10 text-white hover:bg-white/20 hover:text-white shadow-xl z-10 disabled:opacity-30" />
+              </Carousel>
+
+              {/* Dot Indicators */}
+              <div className="flex items-center justify-center gap-2 mt-4">
+                {carouselItems.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => emblaApi?.scrollTo(i)}
+                    className={`carousel-dot rounded-full transition-all duration-300 ${
+                      activeSlide === i
+                        ? 'w-6 h-2 bg-gradient-to-r from-blue-500 to-purple-500 shadow-lg shadow-purple-500/30'
+                        : 'w-2 h-2 bg-white/20 hover:bg-white/40'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          </motion.div>
 
           {/* Quick Start All Button */}
           <motion.div
@@ -1044,12 +1121,111 @@ function QuestionsSection() {
               <span className="relative">{t(lang, 'startQuiz')} - {t(lang, 'allCategories')}</span>
             </Button>
           </motion.div>
+
+          {/* ===== BEAUTIFUL FOOTER ===== */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+          >
+            <div className="relative rounded-3xl overflow-hidden">
+              {/* Background gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-purple-600/5 to-red-600/10" />
+              <div className="absolute inset-0 border border-white/[0.06] rounded-3xl" />
+              <div className="relative p-6 space-y-5">
+                {/* App Branding */}
+                <div className="flex items-center justify-center gap-3" dir="rtl">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-red-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                    <Gamepad2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-black text-base tracking-wide">
+                      7S SQUAD <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">PSYAR</span>
+                    </h3>
+                    <p className="text-white/30 text-[10px] font-bold">ئەپڵیکەیشنا پرسیار و بەرسڤ</p>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                  <Sparkles className="w-3 h-3 text-purple-400/40" />
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                </div>
+
+                {/* Feature icons row */}
+                <div className="flex items-center justify-center gap-6" dir="rtl">
+                  <div className="flex flex-col items-center gap-1.5 group">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/15 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <BookOpen className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <span className="text-white/30 text-[9px] font-bold">{categories.length} {t(lang, 'category')}</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1.5 group">
+                    <div className="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/15 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                    </div>
+                    <span className="text-white/30 text-[9px] font-bold">{t(lang, 'pointsPerQuestion')}</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1.5 group">
+                    <div className="w-10 h-10 rounded-xl bg-green-500/10 border border-green-500/15 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Trophy className="w-5 h-5 text-green-400" />
+                    </div>
+                    <span className="text-white/30 text-[9px] font-bold">TOP ١٠٠</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1.5 group">
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/15 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Clock className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <span className="text-white/30 text-[9px] font-bold">١٢٠ {t(lang, 'seconds')}</span>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                  <Heart className="w-3 h-3 text-red-400/30" />
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                </div>
+
+                {/* Social / Credits */}
+                <div className="flex items-center justify-center gap-4">
+                  <button className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center hover:bg-white/[0.08] hover:scale-110 transition-all">
+                    <Heart className="w-3.5 h-3.5 text-red-400/60" />
+                  </button>
+                  <button className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center hover:bg-white/[0.08] hover:scale-110 transition-all">
+                    <Share2 className="w-3.5 h-3.5 text-blue-400/60" />
+                  </button>
+                  <button className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center hover:bg-white/[0.08] hover:scale-110 transition-all">
+                    <MessageCircle className="w-3.5 h-3.5 text-green-400/60" />
+                  </button>
+                </div>
+
+                {/* Version */}
+                <p className="text-center text-white/15 text-[9px] font-bold tracking-wider">
+                  7S SQUAD PSYAR v1.0
+                </p>
+              </div>
+            </div>
+          </motion.div>
         </div>
       )}
 
       {/* Questions List View */}
       {viewMode === 'list' && (
         <div className="space-y-4">
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+            <Input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-white/[0.04] border-white/10 text-white placeholder:text-white/20 focus:border-purple-400/50 rounded-2xl h-11 text-sm pr-10 pl-3"
+              placeholder={t(lang, 'selectCategory')}
+              dir="rtl"
+            />
+          </div>
+
           {/* Category Header + Start Button */}
           {selectedCat && (() => {
             const cat = categories.find(c => c.id === selectedCat)
@@ -1106,73 +1282,71 @@ function QuestionsSection() {
               <p className="text-white/30 text-sm font-bold" dir="rtl">{t(lang, 'noQuestions')}</p>
             </div>
           ) : (
-            <ScrollArea className="max-h-[calc(100vh-350px)]">
-              <div className="space-y-3">
-                {filteredQuestions.map((q, idx) => {
-                  const catName = lang === 'badini' ? q.category.nameBadini : q.category.nameSorani
-                  const style = getCatStyle(catName)
-                  const optionLabels = ['A', 'B', 'C', 'D']
-                  return (
-                    <motion.div
-                      key={q.id}
-                      initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ delay: idx * 0.04, type: 'spring', stiffness: 400 }}
-                    >
-                      <Card className="bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.1] transition-all duration-300 overflow-hidden group">
-                        <div className={`h-0.5 bg-gradient-to-r ${style.gradient} opacity-40 group-hover:opacity-70 transition-opacity`} />
-                        <CardContent className="p-4">
-                          <div className="flex items-start gap-3" dir="rtl">
-                            {/* Question Number Badge */}
-                            <div className={`flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br ${style.gradient} flex items-center justify-center shadow-lg ${style.glow}`}>
-                              <span className="text-sm font-black text-white">{idx + 1}</span>
+            <div className="space-y-3">
+              {filteredQuestions.map((q, idx) => {
+                const catName = lang === 'badini' ? q.category.nameBadini : q.category.nameSorani
+                const style = getCatStyle(catName)
+                const optionLabels = ['A', 'B', 'C', 'D']
+                return (
+                  <motion.div
+                    key={q.id}
+                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ delay: idx * 0.04, type: 'spring', stiffness: 400 }}
+                  >
+                    <Card className="bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.1] transition-all duration-300 overflow-hidden group">
+                      <div className={`h-0.5 bg-gradient-to-r ${style.gradient} opacity-40 group-hover:opacity-70 transition-opacity`} />
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3" dir="rtl">
+                          {/* Question Number Badge */}
+                          <div className={`flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br ${style.gradient} flex items-center justify-center shadow-lg ${style.glow}`}>
+                            <span className="text-sm font-black text-white">{idx + 1}</span>
+                          </div>
+                          <div className="flex-1 min-w-0 space-y-3">
+                            {/* Category + Points Tags */}
+                            <div className="flex items-center gap-2">
+                              <Badge className={`bg-gradient-to-r ${style.gradient} text-white border-0 text-[9px] px-2.5 py-0.5 font-black shadow-sm`}>
+                                {catName}
+                              </Badge>
+                              <span className="text-yellow-400/40 text-[9px] flex items-center gap-0.5 font-bold">
+                                <Star className="w-2.5 h-2.5 fill-yellow-400/40" /> ١٠ {t(lang, 'points')}
+                              </span>
                             </div>
-                            <div className="flex-1 min-w-0 space-y-3">
-                              {/* Category + Points Tags */}
-                              <div className="flex items-center gap-2">
-                                <Badge className={`bg-gradient-to-r ${style.gradient} text-white border-0 text-[9px] px-2.5 py-0.5 font-black shadow-sm`}>
-                                  {catName}
-                                </Badge>
-                                <span className="text-yellow-400/40 text-[9px] flex items-center gap-0.5 font-bold">
-                                  <Star className="w-2.5 h-2.5 fill-yellow-400/40" /> ١٠ {t(lang, 'points')}
-                                </span>
-                              </div>
-                              {/* Question Text */}
-                              <p className="text-white/90 text-sm leading-relaxed font-bold">{getQText(q)}</p>
-                              {/* Options */}
-                              <div className="grid grid-cols-2 gap-2">
-                                {[1, 2, 3, 4].map((optIdx) => {
-                                  const isCorrect = optIdx === q.correctAnswer
-                                  return (
-                                    <div
-                                      key={optIdx}
-                                      className={`px-3 py-2.5 rounded-xl text-xs transition-all duration-200 flex items-center gap-2 ${
-                                        isCorrect
-                                          ? 'bg-green-500/15 border border-green-500/30 text-green-300 font-bold shadow-sm shadow-green-500/10'
-                                          : 'bg-white/[0.03] border border-white/[0.06] text-white/50 hover:bg-white/[0.06]'
-                                      }`}
-                                    >
-                                      <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black flex-shrink-0 ${
-                                        isCorrect
-                                          ? 'bg-green-500/20 text-green-400'
-                                          : 'bg-white/5 text-white/20'
-                                      }`}>
-                                        {optionLabels[optIdx - 1]}
-                                      </span>
-                                      <span className="truncate">{getOption(q, optIdx)}</span>
-                                    </div>
-                                  )
-                                })}
-                              </div>
+                            {/* Question Text */}
+                            <p className="text-white/90 text-sm leading-relaxed font-bold">{getQText(q)}</p>
+                            {/* Options */}
+                            <div className="grid grid-cols-2 gap-2">
+                              {[1, 2, 3, 4].map((optIdx) => {
+                                const isCorrect = optIdx === q.correctAnswer
+                                return (
+                                  <div
+                                    key={optIdx}
+                                    className={`px-3 py-2.5 rounded-xl text-xs transition-all duration-200 flex items-center gap-2 ${
+                                      isCorrect
+                                        ? 'bg-green-500/15 border border-green-500/30 text-green-300 font-bold shadow-sm shadow-green-500/10'
+                                        : 'bg-white/[0.03] border border-white/[0.06] text-white/50 hover:bg-white/[0.06]'
+                                    }`}
+                                  >
+                                    <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black flex-shrink-0 ${
+                                      isCorrect
+                                        ? 'bg-green-500/20 text-green-400'
+                                        : 'bg-white/5 text-white/20'
+                                    }`}>
+                                      {optionLabels[optIdx - 1]}
+                                    </span>
+                                    <span className="truncate">{getOption(q, optIdx)}</span>
+                                  </div>
+                                )
+                              })}
                             </div>
                           </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  )
-                })}
-              </div>
-            </ScrollArea>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                )
+              })}
+            </div>
           )}
 
           {/* Start Quiz Button at Bottom */}
@@ -1192,6 +1366,50 @@ function QuestionsSection() {
               </Button>
             </motion.div>
           )}
+
+          {/* Footer in list view too */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <div className="relative rounded-3xl overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-purple-600/5 to-red-600/10" />
+              <div className="absolute inset-0 border border-white/[0.06] rounded-3xl" />
+              <div className="relative p-6 space-y-4">
+                <div className="flex items-center justify-center gap-3" dir="rtl">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-red-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                    <Gamepad2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-black text-base tracking-wide">
+                      7S SQUAD <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">PSYAR</span>
+                    </h3>
+                    <p className="text-white/30 text-[10px] font-bold">ئەپڵیکەیشنا پرسیار و بەرسڤ</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                  <Heart className="w-3 h-3 text-red-400/30" />
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                </div>
+                <div className="flex items-center justify-center gap-4">
+                  <button className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center hover:bg-white/[0.08] hover:scale-110 transition-all">
+                    <Heart className="w-3.5 h-3.5 text-red-400/60" />
+                  </button>
+                  <button className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center hover:bg-white/[0.08] hover:scale-110 transition-all">
+                    <Share2 className="w-3.5 h-3.5 text-blue-400/60" />
+                  </button>
+                  <button className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center hover:bg-white/[0.08] hover:scale-110 transition-all">
+                    <MessageCircle className="w-3.5 h-3.5 text-green-400/60" />
+                  </button>
+                </div>
+                <p className="text-center text-white/15 text-[9px] font-bold tracking-wider">
+                  7S SQUAD PSYAR v1.0
+                </p>
+              </div>
+            </div>
+          </motion.div>
         </div>
       )}
     </motion.div>
