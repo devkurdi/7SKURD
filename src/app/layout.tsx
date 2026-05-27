@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="ku" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#0a0e27]`}
       >
         {children}
         <Toaster />

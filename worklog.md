@@ -65,3 +65,28 @@ Stage Summary:
 - White background issue fixed with CSS !important overrides and fixed background attachment
 - Beautiful footer added with branding, feature icons, and social buttons
 - All text remains in Badini Kurdish dialect
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix scattered/messy layout in quiz section and throughout the app
+
+Work Log:
+- Read and analyzed the full page.tsx (2440 lines), globals.css, store.ts, and layout.tsx
+- Analyzed user's uploaded screenshot with VLM to understand the scattered layout issue
+- Redesigned QuizSection with compact 2x2 grid for options (was 1-column on mobile)
+- Made quiz options use flex-col centered layout with A/B/C/D labels for better organization
+- Combined feedback and next button into a single animated container
+- Reduced spacing throughout quiz section (p-4 instead of p-6, gap-2 instead of gap-3)
+- Made quiz card use solid dark background (bg-[#0d1442]/90) to prevent white bleed-through
+- Fixed white background issues: added overscroll-behavior, body::before pseudo-element, dark bg on html/body
+- Fixed QuestionsSection list view options to be more compact (gap-1.5, smaller padding)
+- Updated NavBar to use darker, more opaque background (bg-[#0a0e27]/90)
+- Set layout.tsx body class to bg-[#0a0e27] as fallback
+- Changed main app container from gradient to solid bg-[#0a0e27] with overflow-x-hidden
+- Build succeeded, dev server running on port 3000
+
+Stage Summary:
+- QuizSection now uses 2x2 grid always, compact and organized
+- No more scattered/messy layout in quiz options
+- White background issues fixed with aggressive dark backgrounds and overscroll prevention
+- All elements properly contained within dark cards
