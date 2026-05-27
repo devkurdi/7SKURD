@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import { HardcodedQuestion } from './questions'
 
 export type Lang = 'badini' | 'sorani'
+export type TabView = 'home' | 'questions' | 'top' | 'quiz' | 'results' | 'admin'
 
 export interface PlayerData {
   id: string
@@ -10,33 +10,70 @@ export interface PlayerData {
   score: number
   correctCount: number
   totalAnswered: number
-  createdAt: number
 }
 
-export type SectionView = 'home' | 'quiz' | 'results'
+export interface DBQuestion {
+  id: string
+  textBadini: string
+  textSorani: string
+  option1Badini: string
+  option1Sorani: string
+  option2Badini: string
+  option2Sorani: string
+  option3Badini: string
+  option3Sorani: string
+  option4Badini: string
+  option4Sorani: string
+  correctAnswer: number
+  categoryId: string
+  category: {
+    id: string
+    nameBadini: string
+    nameSorani: string
+  }
+}
+
+export interface DBCategory {
+  id: string
+  nameBadini: string
+  nameSorani: string
+  _count: {
+    questions: number
+  }
+}
 
 interface AppState {
   // Language
   lang: Lang
   setLang: (lang: Lang) => void
 
-  // Current view
-  section: SectionView
-  setSection: (s: SectionView) => void
+  // Current tab
+  tab: TabView
+  setTab: (t: TabView) => void
 
   // Player info
   playerName: string
   setPlayerName: (n: string) => void
   playerAvatar: string | null
   setPlayerAvatar: (a: string | null) => void
+  participantId: string | null
+  setParticipantId: (id: string | null) => void
 
-  // Selected category
+  // Selected category for quiz
   selectedCategory: string
   setSelectedCategory: (c: string) => void
 
+  // Categories from DB
+  categories: DBCategory[]
+  setCategories: (c: DBCategory[]) => void
+
+  // Questions from DB
+  dbQuestions: DBQuestion[]
+  setDbQuestions: (q: DBQuestion[]) => void
+
   // Quiz state
-  quizQuestions: HardcodedQuestion[]
-  setQuizQuestions: (q: HardcodedQuestion[]) => void
+  quizQuestions: DBQuestion[]
+  setQuizQuestions: (q: DBQuestion[]) => void
   currentQuestionIndex: number
   setCurrentQuestionIndex: (i: number) => void
   selectedAnswer: number | null
@@ -56,48 +93,36 @@ interface AppState {
   isAdminAuth: boolean
   setIsAdminAuth: (v: boolean) => void
 
-  // Leaderboard (stored in localStorage)
+  // Leaderboard from DB
   leaderboard: PlayerData[]
   setLeaderboard: (entries: PlayerData[]) => void
-  addPlayerToLeaderboard: (player: PlayerData) => void
 
   // Reset
   resetQuiz: () => void
 }
 
-const LEADERBOARD_KEY = '7s_squad_leaderboard'
-
-function loadLeaderboard(): PlayerData[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const stored = localStorage.getItem(LEADERBOARD_KEY)
-    return stored ? JSON.parse(stored) : []
-  } catch {
-    return []
-  }
-}
-
-function saveLeaderboard(entries: PlayerData[]) {
-  if (typeof window === 'undefined') return
-  try {
-    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries))
-  } catch { /* ignore */ }
-}
-
-export const useAppStore = create<AppState>((set, get) => ({
+export const useAppStore = create<AppState>((set) => ({
   lang: 'badini',
   setLang: (lang) => set({ lang }),
 
-  section: 'home',
-  setSection: (section) => set({ section }),
+  tab: 'home',
+  setTab: (tab) => set({ tab }),
 
   playerName: '',
   setPlayerName: (playerName) => set({ playerName }),
   playerAvatar: null,
   setPlayerAvatar: (playerAvatar) => set({ playerAvatar }),
+  participantId: null,
+  setParticipantId: (participantId) => set({ participantId }),
 
   selectedCategory: '',
   setSelectedCategory: (selectedCategory) => set({ selectedCategory }),
+
+  categories: [],
+  setCategories: (categories) => set({ categories }),
+
+  dbQuestions: [],
+  setDbQuestions: (dbQuestions) => set({ dbQuestions }),
 
   quizQuestions: [],
   setQuizQuestions: (quizQuestions) => set({ quizQuestions }),
@@ -120,34 +145,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setIsAdminAuth: (isAdminAuth) => set({ isAdminAuth }),
 
   leaderboard: [],
-  setLeaderboard: (leaderboard) => {
-    set({ leaderboard })
-    saveLeaderboard(leaderboard)
-  },
-  addPlayerToLeaderboard: (player) => {
-    const current = get().leaderboard
-    // Check if player already exists by name, update their score
-    const existing = current.findIndex(p => p.name === player.name)
-    let updated: PlayerData[]
-    if (existing >= 0) {
-      updated = [...current]
-      updated[existing] = {
-        ...updated[existing],
-        score: updated[existing].score + player.score,
-        correctCount: updated[existing].correctCount + player.correctCount,
-        totalAnswered: updated[existing].totalAnswered + player.totalAnswered,
-        avatar: player.avatar || updated[existing].avatar,
-      }
-    } else {
-      updated = [...current, player]
-    }
-    // Sort by score descending
-    updated.sort((a, b) => b.score - a.score)
-    // Keep top 100
-    updated = updated.slice(0, 100)
-    set({ leaderboard: updated })
-    saveLeaderboard(updated)
-  },
+  setLeaderboard: (leaderboard) => set({ leaderboard }),
 
   resetQuiz: () =>
     set({

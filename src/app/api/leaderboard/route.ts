@@ -3,15 +3,16 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    // Use a simpler query approach
     const participants = await db.participant.findMany({
       select: {
         id: true,
         name: true,
         avatar: true,
-        answers: {
+        scores: {
           select: {
-            isCorrect: true,
+            points: true,
+            correctCount: true,
+            totalAnswered: true,
           },
         },
       },
@@ -19,19 +20,21 @@ export async function GET() {
 
     const leaderboard = participants
       .map((p) => {
-        const correctCount = p.answers.filter((a) => a.isCorrect).length
-        const totalAnswered = p.answers.length
-        const score = correctCount * 10
+        const totalPoints = p.scores.reduce((sum, s) => sum + s.points, 0)
+        const totalCorrect = p.scores.reduce((sum, s) => sum + s.correctCount, 0)
+        const totalAnswered = p.scores.reduce((sum, s) => sum + s.totalAnswered, 0)
         return {
           id: p.id,
           name: p.name,
           avatar: p.avatar,
-          correctCount,
-          totalAnswered,
-          score,
+          score: totalPoints,
+          correctCount: totalCorrect,
+          totalAnswered: totalAnswered,
         }
       })
+      .filter((p) => p.score > 0)
       .sort((a, b) => b.score - a.score || b.correctCount - a.correctCount)
+      .slice(0, 100)
 
     return NextResponse.json(leaderboard)
   } catch (error) {

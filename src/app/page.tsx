@@ -1,10 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useAppStore, Lang, PlayerData } from '@/lib/store'
-import { questions as allQuestions, HardcodedQuestion, getCategories, shuffleQuestions } from '@/lib/questions'
+import { useAppStore, Lang, DBQuestion, DBCategory, PlayerData, TabView } from '@/lib/store'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -14,7 +13,7 @@ import {
   XCircle, BookOpen, Languages,
   Star, Zap, Sparkles, Eye, EyeOff,
   Gamepad2, Crown, Target, CircleDot, Medal,
-  Users, Search, ChevronDown, ChevronUp, ArrowRight, Play, Home as HomeIcon, RotateCcw,
+  Users, ChevronDown, ChevronUp, Play, RotateCcw, ArrowLeft, ListChecks, BarChart3,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -72,16 +71,12 @@ const translations = {
     noPlayersYet: 'هێشتا یاریزانێک نییە',
     totalPoints: 'کۆی خاڵ',
     welcomeBack: 'بەخێربێیتەوە',
-    profileSection: 'پرۆفایل',
     enterNameToStart: 'ناڤێ خۆ بنڤیسە تا دەستپێبکەی',
-    quizSection: 'پرسیارکرن',
+    quizSection: 'برسیاركرن',
     topSection: 'TOP ١٠٠',
-    goToQuiz: 'بچۆ کویز',
-    goToTop: 'بچۆ TOP',
-    goToHome: 'HOME',
+    homeSection: 'HOME',
     quizEnded: 'کویز تەواو بوو',
     playAgain: 'دووبارە یاریبکە',
-    homeSection: 'HOME',
     timeRemaining: 'چرکە',
     category: 'جۆر',
     manageQuestions: 'بەڕێوەبردنا پرسیاران',
@@ -90,6 +85,19 @@ const translations = {
     questionNumber: 'پرسیاری ژمارە',
     option: 'هەڵبژارتن',
     correctOption: 'هەڵبژارتنا دروست',
+    questionsTab: 'برسیاركرن',
+    categoryNameBadini: 'ناڤێ جۆری بادینی',
+    categoryNameSorani: 'ناڤێ جۆری سورانی',
+    questionTextBadini: 'پرسیارا بادینی',
+    questionTextSorani: 'پرسیارا سورانی',
+    optionBadini: 'هەڵبژارتن بادینی',
+    optionSorani: 'هەڵبژارتن سورانی',
+    addNewQuestion: 'پرسیارێ نوو زێدەبکە',
+    addNewCategory: 'جۆرێ نوو زێدەبکە',
+    selectCategoryForQuestion: 'جۆرێ هەڵبژێرە بۆ پرسیارێ',
+    successAdded: 'سەرکەوتنەوە زێدەکرا',
+    errorAdded: 'خەلەتە! نەزێدەکرا',
+    confirmDelete: 'دڵنیایت ژێدبڕیت؟',
   },
   sorani: {
     appName: '7S SQUAD PSYAR',
@@ -142,16 +150,12 @@ const translations = {
     noPlayersYet: 'هێشتا یاریزانێک نییە',
     totalPoints: 'کۆى خاڵ',
     welcomeBack: 'بەخێربێیتەوە',
-    profileSection: 'پرۆفایل',
     enterNameToStart: 'ناوت بنووسە تا دەستپێبکەیت',
     quizSection: 'پرسیارکردن',
     topSection: 'TOP ١٠٠',
-    goToQuiz: 'بچۆ کویز',
-    goToTop: 'بچۆ TOP',
-    goToHome: 'HOME',
+    homeSection: 'HOME',
     quizEnded: 'کویز تەواو بوو',
     playAgain: 'دووبارە یاریبکە',
-    homeSection: 'HOME',
     timeRemaining: 'چرکە',
     category: 'جۆر',
     manageQuestions: 'بەڕێوەبردنى پرسیارەکان',
@@ -160,10 +164,25 @@ const translations = {
     questionNumber: 'پرسیارى ژمارە',
     option: 'هەڵبژاردن',
     correctOption: 'هەڵبژاردنى ڕاست',
+    questionsTab: 'پرسیارکردن',
+    categoryNameBadini: 'ناوى جۆر بادینی',
+    categoryNameSorani: 'ناوى جۆر سورانی',
+    questionTextBadini: 'پرسیار بادینی',
+    questionTextSorani: 'پرسیار سورانی',
+    optionBadini: 'هەڵبژاردن بادینی',
+    optionSorani: 'هەڵبژاردن سورانی',
+    addNewQuestion: 'پرسیارى نوێ زیادبکە',
+    addNewCategory: 'جۆرى نوێ زیادبکە',
+    selectCategoryForQuestion: 'جۆرێک هەڵبژێرە بۆ پرسیار',
+    successAdded: 'سەرکەوتنەوە زیادکرا',
+    errorAdded: 'هەڵە! نەزیادکرا',
+    confirmDelete: 'دڵنیایت سڕینەوە؟',
   },
 }
 
-function t(lang: Lang, key: keyof typeof translations.badini) {
+type TransKey = keyof typeof translations.badini
+
+function t(lang: Lang, key: TransKey) {
   return translations[lang][key]
 }
 
@@ -219,31 +238,100 @@ function CircularTimer({ timeLeft, maxTime }: { timeLeft: number; maxTime: numbe
   )
 }
 
+// ===================== DATA FETCHING HOOKS =====================
+function useCategories() {
+  const [categories, setCategories] = useState<DBCategory[]>([])
+  const [loading, setLoading] = useState(true)
+  const lang = useAppStore(s => s.lang)
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await fetch('/api/categories')
+      if (res.ok) {
+        const data = await res.json()
+        setCategories(data)
+      }
+    } catch (e) {
+      console.error('Failed to fetch categories', e)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchCategories() }, [fetchCategories])
+
+  return { categories, loading, refetch: fetchCategories }
+}
+
+function useQuestions(categoryId?: string) {
+  const [questions, setQuestions] = useState<DBQuestion[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchQuestions = useCallback(async () => {
+    try {
+      const url = categoryId ? `/api/questions?categoryId=${categoryId}` : '/api/questions'
+      const res = await fetch(url)
+      if (res.ok) {
+        const data = await res.json()
+        setQuestions(data)
+      }
+    } catch (e) {
+      console.error('Failed to fetch questions', e)
+    } finally {
+      setLoading(false)
+    }
+  }, [categoryId])
+
+  useEffect(() => { fetchQuestions() }, [fetchQuestions])
+
+  return { questions, loading, refetch: fetchQuestions }
+}
+
+function useLeaderboard() {
+  const [leaderboard, setLeaderboard] = useState<PlayerData[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchLeaderboard = useCallback(async () => {
+    try {
+      const res = await fetch('/api/leaderboard')
+      if (res.ok) {
+        const data = await res.json()
+        setLeaderboard(data)
+      }
+    } catch (e) {
+      console.error('Failed to fetch leaderboard', e)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchLeaderboard() }, [fetchLeaderboard])
+
+  return { leaderboard, loading, refetch: fetchLeaderboard }
+}
+
 // ===================== MAIN APP =====================
 export default function App() {
-  const { section, leaderboard, setLeaderboard } = useAppStore()
+  const tab = useAppStore(s => s.tab)
 
-  // Load leaderboard from localStorage on mount
+  // Seed DB on first load
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('7s_squad_leaderboard')
-      if (stored) {
-        try {
-          const data = JSON.parse(stored)
-          setLeaderboard(data)
-        } catch { /* ignore */ }
-      }
-    }
-  }, [setLeaderboard])
+    fetch('/api/seed', { method: 'POST' }).catch(() => {})
+  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0e27] via-[#0d1442] to-[#1a0a2e] relative">
       <AnimatedBackground />
       <div className="relative z-10">
         <NavBar />
-        {section === 'home' && <HomeSection />}
-        {section === 'quiz' && <QuizSection />}
-        {section === 'results' && <ResultsSection />}
+        <AnimatePresence mode="wait">
+          {tab === 'home' && <HomeSection key="home" />}
+          {tab === 'questions' && <QuestionsSection key="questions" />}
+          {tab === 'top' && <TopSection key="top" />}
+          {tab === 'quiz' && <QuizSection key="quiz" />}
+          {tab === 'results' && <ResultsSection key="results" />}
+          {tab === 'admin' && <AdminSection key="admin" />}
+        </AnimatePresence>
       </div>
     </div>
   )
@@ -251,8 +339,14 @@ export default function App() {
 
 // ===================== NAVBAR =====================
 function NavBar() {
-  const { section, setSection, lang, setLang } = useAppStore()
+  const { tab, setTab, lang, setLang, isAdminAuth } = useAppStore()
   const [showAdminModal, setShowAdminModal] = useState(false)
+
+  const tabs: { key: TabView; label: TransKey; icon: React.ReactNode }[] = [
+    { key: 'home', label: 'homeSection', icon: <Gamepad2 className="w-3.5 h-3.5" /> },
+    { key: 'questions', label: 'questionsTab', icon: <ListChecks className="w-3.5 h-3.5" /> },
+    { key: 'top', label: 'topSection', icon: <Trophy className="w-3.5 h-3.5" /> },
+  ]
 
   return (
     <>
@@ -268,50 +362,49 @@ function NavBar() {
           {lang === 'badini' ? 'سورانی' : 'بادینی'}
         </Button>
 
-        {/* Center - Navigation */}
+        {/* Center - Navigation Tabs */}
         <div className="flex items-center gap-1 bg-white/5 rounded-xl p-0.5">
-          {(['home', 'quiz', 'top'] as const).map((tab) => {
-            const isActive = section === tab || (section === 'results' && tab === 'quiz')
-            const labelKey = tab === 'home' ? 'homeSection' : tab === 'quiz' ? 'quizSection' : 'topSection'
+          {tabs.map((item) => {
+            const isActive = tab === item.key
             return (
               <button
-                key={tab}
-                onClick={() => {
-                  if (tab === 'top') {
-                    // Scroll to TOP section on home
-                    setSection('home')
-                    setTimeout(() => {
-                      document.getElementById('top-section')?.scrollIntoView({ behavior: 'smooth' })
-                    }, 100)
-                  } else {
-                    setSection(tab as 'home' | 'quiz')
-                  }
-                }}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-300 ${
+                key={item.key}
+                onClick={() => setTab(item.key)}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all duration-300 ${
                   isActive
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-purple-500/25'
                     : 'text-white/50 hover:text-white/80 hover:bg-white/5'
                 }`}
               >
-                {t(lang, labelKey)}
+                {item.icon}
+                {t(lang, item.label)}
               </button>
             )
           })}
         </div>
 
-        {/* Right - Admin Panel Button */}
+        {/* Right - Admin Button */}
         <Button
           variant="outline"
           size="sm"
-          className="bg-gradient-to-r from-orange-600/20 to-red-600/20 border-orange-500/30 text-orange-300 hover:bg-orange-600/30 backdrop-blur-sm rounded-full px-3 h-8 text-[11px] font-bold"
-          onClick={() => setShowAdminModal(true)}
+          className={`backdrop-blur-sm rounded-full px-3 h-8 text-[11px] font-bold ${
+            isAdminAuth
+              ? 'bg-green-600/20 border-green-500/30 text-green-300 hover:bg-green-600/30'
+              : 'bg-gradient-to-r from-orange-600/20 to-red-600/20 border-orange-500/30 text-orange-300 hover:bg-orange-600/30'
+          }`}
+          onClick={() => {
+            if (isAdminAuth) {
+              setTab('admin')
+            } else {
+              setShowAdminModal(true)
+            }
+          }}
         >
           <Shield className="w-3.5 h-3.5 mr-1.5" />
           ADMIN
         </Button>
       </div>
 
-      {/* Admin Login Modal */}
       <AdminLoginModal open={showAdminModal} onClose={() => setShowAdminModal(false)} />
     </>
   )
@@ -319,7 +412,7 @@ function NavBar() {
 
 // ===================== ADMIN LOGIN MODAL =====================
 function AdminLoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { lang, setIsAdminAuth, setSection } = useAppStore()
+  const { lang, setIsAdminAuth, setTab } = useAppStore()
   const [adminPass, setAdminPass] = useState('')
   const [showPass, setShowPass] = useState(false)
   const { toast } = useToast()
@@ -336,11 +429,7 @@ function AdminLoginModal({ open, onClose }: { open: boolean; onClose: () => void
         setIsAdminAuth(true)
         onClose()
         setAdminPass('')
-        setSection('home')
-        // Open admin section
-        setTimeout(() => {
-          document.getElementById('admin-section')?.scrollIntoView({ behavior: 'smooth' })
-        }, 100)
+        setTab('admin')
       } else {
         toast({ title: t(lang, 'invalidPassword'), variant: 'destructive' })
       }
@@ -416,17 +505,13 @@ function AdminLoginModal({ open, onClose }: { open: boolean; onClose: () => void
   )
 }
 
-// ===================== HOME SECTION (ALL-IN-ONE) =====================
+// ===================== HOME SECTION =====================
 function HomeSection() {
-  const { lang, setSection, playerName, setPlayerName, playerAvatar, setPlayerAvatar, setSelectedCategory, selectedCategory, resetQuiz, leaderboard } = useAppStore()
+  const { lang, setTab, playerName, setPlayerName, playerAvatar, setPlayerAvatar, setSelectedCategory, resetQuiz } = useAppStore()
+  const { categories } = useCategories()
+  const { leaderboard } = useLeaderboard()
   const [avatarPreview, setAvatarPreview] = useState<string | null>(playerAvatar)
-  const [showAllTop, setShowAllTop] = useState(false)
   const { toast } = useToast()
-
-  const categories = getCategories(lang)
-  const filteredQuestions = selectedCategory
-    ? allQuestions.filter(q => (lang === 'badini' ? q.categoryBadini : q.categorySorani) === selectedCategory)
-    : allQuestions
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -440,134 +525,106 @@ function HomeSection() {
     reader.readAsDataURL(file)
   }
 
-  const handleStartQuiz = () => {
+  const handleStartQuiz = (categoryId: string = '') => {
     if (!playerName.trim()) {
       toast({ title: t(lang, 'enterNameToStart'), variant: 'destructive' })
       return
     }
-    setSelectedCategory(selectedCategory)
+    setSelectedCategory(categoryId)
     resetQuiz()
-    setSection('quiz')
+    setTab('quiz')
   }
 
-  const getRankIcon = (index: number) => {
-    if (index === 0) return <Crown className="w-4 h-4 text-yellow-400" />
-    if (index === 1) return <Medal className="w-4 h-4 text-gray-300" />
-    if (index === 2) return <Medal className="w-4 h-4 text-amber-600" />
-    return <span className="text-white/40 text-[10px] font-bold">{index + 1}</span>
-  }
+  const getCatName = (cat: DBCategory) => lang === 'badini' ? cat.nameBadini : cat.nameSorani
 
   return (
-    <div className="max-w-5xl mx-auto px-4 pt-4 pb-8 space-y-6">
-
-      {/* ====== HERO / WELCOME ====== */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center"
-      >
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="max-w-5xl mx-auto px-4 pt-6 pb-8 space-y-6"
+    >
+      {/* HERO */}
+      <div className="text-center">
         <motion.div
           initial={{ scale: 0, rotate: -180 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', stiffness: 200, delay: 0.2 }}
-          className="mx-auto mb-4 w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-red-500 flex items-center justify-center shadow-2xl shadow-purple-500/30"
+          className="mx-auto mb-4 w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-red-500 flex items-center justify-center shadow-2xl shadow-purple-500/30"
         >
-          <Gamepad2 className="w-8 h-8 text-white" />
+          <Gamepad2 className="w-10 h-10 text-white" />
         </motion.div>
-        <h1 className="text-3xl md:text-4xl font-black text-white tracking-wider">
+        <h1 className="text-4xl md:text-5xl font-black text-white tracking-wider">
           7S SQUAD <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-red-400 bg-clip-text text-transparent">PSYAR</span>
         </h1>
         {playerName.trim() && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-green-300/70 mt-1 text-sm" dir="rtl"
-          >
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-green-300/70 mt-2 text-base" dir="rtl">
             {t(lang, 'welcomeBack')} {playerName.trim()}!
           </motion.p>
         )}
-      </motion.div>
+      </div>
 
-      {/* ====== MAIN GRID ====== */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-
-        {/* LEFT - Profile + Start */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+        {/* LEFT - Profile */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1 }}
           className="md:col-span-4 space-y-4"
         >
-          {/* Profile Card */}
           <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-xl overflow-hidden">
             <div className="h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-red-500" />
-            <CardContent className="p-4 space-y-3">
+            <CardContent className="p-5 space-y-4">
               {/* Avatar */}
-              <div className="flex flex-col items-center gap-1.5">
+              <div className="flex flex-col items-center gap-2">
                 <div className="relative group">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-white/10 to-white/5 border-2 border-dashed border-white/20 flex items-center justify-center overflow-hidden group-hover:border-purple-400/50 transition-all">
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-white/10 to-white/5 border-2 border-dashed border-white/20 flex items-center justify-center overflow-hidden group-hover:border-purple-400/50 transition-all">
                     {avatarPreview ? (
                       <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <UserPlus className="w-7 h-7 text-white/30" />
+                      <UserPlus className="w-8 h-8 text-white/30" />
                     )}
                   </div>
                   <input type="file" accept="image/*" onChange={handleAvatarUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-red-500 flex items-center justify-center shadow-md">
-                    <Plus className="w-3.5 h-3.5 text-white" />
+                  <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-red-500 flex items-center justify-center shadow-md">
+                    <Plus className="w-4 h-4 text-white" />
                   </div>
                 </div>
-                <Label className="text-white/40 text-[10px]">{t(lang, 'uploadAvatar')}</Label>
+                <Label className="text-white/40 text-xs" dir="rtl">{t(lang, 'uploadAvatar')}</Label>
               </div>
 
-              {/* Name Input */}
+              {/* Name */}
               <div className="space-y-1">
-                <Label className="text-white/50 text-[10px]" dir="rtl">{t(lang, 'enterName')}</Label>
+                <Label className="text-white/50 text-xs" dir="rtl">{t(lang, 'enterName')}</Label>
                 <div className="relative">
                   <Input
                     value={playerName}
                     onChange={(e) => setPlayerName(e.target.value)}
-                    className={`bg-white/5 border text-white placeholder:text-white/20 rounded-xl h-10 text-xs pr-3 pl-8 transition-all ${
+                    className={`bg-white/5 border text-white placeholder:text-white/20 rounded-xl h-11 text-sm pr-3 pl-10 transition-all ${
                       playerName.trim() ? 'border-green-500/40 focus:border-green-400/60' : 'border-white/10 focus:border-purple-400/50'
                     }`}
                     placeholder={t(lang, 'enterName')}
                     dir="rtl"
                   />
-                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2">
                     {playerName.trim() ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <UserPlus className="w-4 h-4 text-white/20" />}
                   </div>
                 </div>
               </div>
 
-              {/* Category Select */}
-              <div className="space-y-1">
-                <Label className="text-white/50 text-[10px]" dir="rtl">{t(lang, 'selectCategory')}</Label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 text-white rounded-xl h-10 text-xs px-3 appearance-none cursor-pointer focus:border-purple-400/50 focus:outline-none"
-                  dir="rtl"
-                >
-                  <option value="" className="bg-[#0d1442]">{t(lang, 'allCategories')}</option>
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.name} className="bg-[#0d1442]">{cat.name}</option>
-                  ))}
-                </select>
-              </div>
-
               {/* Points Badge */}
-              <div className="flex items-center justify-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl py-2 px-3" dir="rtl">
-                <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                <span className="text-yellow-300/80 text-xs font-bold">{t(lang, 'pointsPerQuestion')}</span>
+              <div className="flex items-center justify-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl py-2.5 px-3" dir="rtl">
+                <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                <span className="text-yellow-300/80 text-sm font-bold">{t(lang, 'pointsPerQuestion')}</span>
               </div>
 
-              {/* Start Button */}
+              {/* Start All Categories */}
               <Button
-                onClick={handleStartQuiz}
+                onClick={() => handleStartQuiz('')}
                 disabled={!playerName.trim()}
-                className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-red-600 hover:from-blue-700 hover:via-purple-700 hover:to-red-700 text-white font-bold text-sm py-4 rounded-xl shadow-lg shadow-purple-500/25 transition-all hover:shadow-xl hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100"
+                className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-red-600 hover:from-blue-700 hover:via-purple-700 hover:to-red-700 text-white font-bold text-base py-5 rounded-xl shadow-lg shadow-purple-500/25 transition-all hover:shadow-xl hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100"
               >
-                <Play className="w-4 h-4 mr-2" />
+                <Play className="w-5 h-5 mr-2" />
                 {t(lang, 'startQuiz')}
               </Button>
             </CardContent>
@@ -576,30 +633,30 @@ function HomeSection() {
           {/* Mini TOP 5 */}
           <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-xl overflow-hidden">
             <div className="h-1 bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500" />
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between mb-2">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-1.5" dir="rtl">
-                  <Trophy className="w-3.5 h-3.5 text-yellow-400" />
-                  <span className="text-white/70 text-[11px] font-bold">{t(lang, 'topList')}</span>
+                  <Trophy className="w-4 h-4 text-yellow-400" />
+                  <span className="text-white/80 text-sm font-bold">{t(lang, 'topList')}</span>
                 </div>
                 <button
-                  onClick={() => document.getElementById('top-section')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="text-blue-400/60 text-[9px] hover:text-blue-400 transition-colors"
+                  onClick={() => setTab('top')}
+                  className="text-blue-400/60 text-xs hover:text-blue-400 transition-colors"
                 >
-                  {t(lang, 'viewResults')} →
+                  {t(lang, 'viewResults')} &rarr;
                 </button>
               </div>
               {leaderboard.length === 0 ? (
-                <div className="text-center py-3">
-                  <Users className="w-5 h-5 text-white/15 mx-auto mb-1" />
-                  <p className="text-white/20 text-[9px]" dir="rtl">{t(lang, 'noPlayersYet')}</p>
+                <div className="text-center py-4">
+                  <Users className="w-6 h-6 text-white/15 mx-auto mb-1" />
+                  <p className="text-white/25 text-xs" dir="rtl">{t(lang, 'noPlayersYet')}</p>
                 </div>
               ) : (
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   {leaderboard.slice(0, 5).map((entry, i) => (
                     <div
                       key={entry.id}
-                      className={`flex items-center gap-1.5 p-1.5 rounded-lg ${
+                      className={`flex items-center gap-2 p-2 rounded-lg ${
                         i === 0 ? 'bg-yellow-500/10 border border-yellow-500/20' :
                         i === 1 ? 'bg-gray-400/10 border border-gray-400/10' :
                         i === 2 ? 'bg-amber-600/10 border border-amber-600/10' :
@@ -607,14 +664,25 @@ function HomeSection() {
                       }`}
                       dir="rtl"
                     >
-                      <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">{getRankIcon(i)}</div>
-                      <div className="flex items-center gap-1 flex-1 min-w-0">
-                        {entry.avatar && <img src={entry.avatar} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />}
-                        <p className="text-white/80 text-[10px] font-bold truncate">{entry.name}</p>
+                      <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+                        {i === 0 ? <Crown className="w-4 h-4 text-yellow-400" /> :
+                         i === 1 ? <Medal className="w-4 h-4 text-gray-300" /> :
+                         i === 2 ? <Medal className="w-4 h-4 text-amber-600" /> :
+                         <span className="text-white/40 text-xs font-bold">{i + 1}</span>}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        {entry.avatar ? (
+                          <img src={entry.avatar} alt="" className="w-5 h-5 rounded-full object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                            <UserPlus className="w-3 h-3 text-white/30" />
+                          </div>
+                        )}
+                        <p className="text-white/80 text-xs font-bold truncate">{entry.name}</p>
                       </div>
                       <div className="flex items-center gap-0.5 flex-shrink-0">
-                        <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
-                        <span className="text-yellow-300 text-[10px] font-bold">{entry.score}</span>
+                        <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                        <span className="text-yellow-300 text-xs font-bold">{entry.score}</span>
                       </div>
                     </div>
                   ))}
@@ -624,214 +692,459 @@ function HomeSection() {
           </Card>
         </motion.div>
 
-        {/* RIGHT - Categories + Questions List + TOP */}
+        {/* RIGHT - Categories */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.2 }}
           className="md:col-span-8 space-y-4"
         >
-          {/* Categories Grid */}
           <div>
-            <h3 className="text-white/40 text-[10px] font-semibold uppercase tracking-widest mb-2 flex items-center gap-1.5" dir="rtl">
-              <Target className="w-3 h-3" />
+            <h3 className="text-white/50 text-xs font-semibold uppercase tracking-widest mb-3 flex items-center gap-2" dir="rtl">
+              <Target className="w-4 h-4" />
               {t(lang, 'selectCategory')}
             </h3>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {/* All Categories Card */}
               <motion.button
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => setSelectedCategory('')}
-                className={`rounded-xl p-3 border-2 transition-all text-center ${
-                  !selectedCategory
-                    ? 'border-purple-400/60 bg-purple-500/10 shadow-lg shadow-purple-500/10'
-                    : 'border-white/10 bg-white/[0.03] hover:border-white/20'
-                }`}
+                onClick={() => handleStartQuiz('')}
+                className="rounded-xl p-4 border-2 border-white/10 bg-white/[0.03] hover:border-purple-400/50 transition-all text-center"
               >
-                <div className="mx-auto mb-1.5 w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 via-purple-500 to-red-500 flex items-center justify-center">
-                  <BookOpen className="w-4 h-4 text-white" />
+                <div className="mx-auto mb-2 w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 via-purple-500 to-red-500 flex items-center justify-center">
+                  <BookOpen className="w-5 h-5 text-white" />
                 </div>
-                <p className="text-white text-[10px] font-bold" dir="rtl">{t(lang, 'allCategories')}</p>
-                <p className="text-white/25 text-[9px]">{allQuestions.length}</p>
+                <p className="text-white text-xs font-bold" dir="rtl">{t(lang, 'allCategories')}</p>
+                <div className="flex items-center justify-center gap-1 mt-1">
+                  <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                  <span className="text-yellow-300/60 text-[10px]">{t(lang, 'pointsPerQuestion')}</span>
+                </div>
               </motion.button>
+
+              {/* Category Cards */}
               {categories.map((cat, i) => {
-                const count = allQuestions.filter(q => (lang === 'badini' ? q.categoryBadini : q.categorySorani) === cat.name).length
-                const colors = ['from-blue-500 to-cyan-500', 'from-purple-500 to-pink-500', 'from-red-500 to-orange-500', 'from-green-500 to-emerald-500', 'from-amber-500 to-yellow-500', 'from-indigo-500 to-blue-500', 'from-rose-500 to-pink-500']
+                const colors = ['from-blue-500 to-cyan-500', 'from-purple-500 to-pink-500', 'from-red-500 to-orange-500', 'from-green-500 to-emerald-500', 'from-amber-500 to-yellow-500', 'from-indigo-500 to-blue-500']
+                const qCount = cat._count?.questions || 0
                 return (
                   <motion.button
                     key={cat.id}
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
-                    onClick={() => setSelectedCategory(cat.name)}
-                    className={`rounded-xl p-3 border-2 transition-all text-center ${
-                      selectedCategory === cat.name
-                        ? 'border-purple-400/60 bg-purple-500/10 shadow-lg shadow-purple-500/10'
-                        : 'border-white/10 bg-white/[0.03] hover:border-white/20'
-                    }`}
+                    onClick={() => handleStartQuiz(cat.id)}
+                    className="rounded-xl p-4 border-2 border-white/10 bg-white/[0.03] hover:border-purple-400/50 transition-all text-center"
                   >
-                    <div className={`mx-auto mb-1.5 w-8 h-8 rounded-lg bg-gradient-to-br ${colors[i % colors.length]} flex items-center justify-center`}>
-                      <BookOpen className="w-4 h-4 text-white" />
+                    <div className={`mx-auto mb-2 w-10 h-10 rounded-lg bg-gradient-to-br ${colors[i % colors.length]} flex items-center justify-center`}>
+                      <BookOpen className="w-5 h-5 text-white" />
                     </div>
-                    <p className="text-white text-[10px] font-bold" dir="rtl">{cat.name}</p>
-                    <p className="text-white/25 text-[9px]">{count}</p>
+                    <p className="text-white text-xs font-bold" dir="rtl">{getCatName(cat)}</p>
+                    <p className="text-white/30 text-[10px] mt-0.5">{qCount} {t(lang, 'questions')}</p>
                   </motion.button>
                 )
               })}
             </div>
           </div>
 
-          {/* Questions Preview */}
-          <div>
-            <h3 className="text-white/40 text-[10px] font-semibold uppercase tracking-widest mb-2 flex items-center gap-1.5" dir="rtl">
-              <CircleDot className="w-3 h-3" />
-              {t(lang, 'availableQuestions')} ({filteredQuestions.length})
-            </h3>
-            <ScrollArea className="max-h-[350px]">
-              <div className="space-y-1.5 pr-1">
-                {filteredQuestions.map((q, idx) => (
-                  <motion.div
-                    key={q.id}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.02 }}
-                    className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-2.5 hover:bg-white/[0.06] transition-all"
-                  >
-                    <div className="flex items-start gap-2" dir="rtl">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-lg bg-blue-500/15 border border-blue-500/15 flex items-center justify-center text-[9px] font-bold text-blue-300">
-                        {idx + 1}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <Badge className="bg-blue-500/10 text-blue-300/60 border-blue-500/15 text-[7px] px-1 py-0">
-                            {lang === 'badini' ? q.categoryBadini : q.categorySorani}
-                          </Badge>
-                          <span className="text-yellow-400/40 text-[7px] flex items-center gap-0.5">
-                            <Star className="w-2 h-2 fill-yellow-400/40" /> ١٠
-                          </span>
-                        </div>
-                        <p className="text-white/80 text-[11px] leading-relaxed line-clamp-2">
-                          {lang === 'badini' ? q.textBadini : q.textSorani}
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-                {filteredQuestions.length === 0 && (
-                  <div className="text-center py-6">
-                    <BookOpen className="w-8 h-8 text-white/15 mx-auto mb-1" />
-                    <p className="text-white/25 text-[10px]" dir="rtl">{t(lang, 'noQuestions')}</p>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-
-          {/* ====== TOP 100 LEADERBOARD (inside HOME) ====== */}
-          <div id="top-section">
-            <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-xl overflow-hidden">
-              <div className="h-1 bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500" />
-              <CardContent className="p-4">
-                <div className="flex items-center justify-center gap-2 mb-4" dir="rtl">
-                  <Trophy className="w-5 h-5 text-yellow-400" />
-                  <span className="text-white font-bold text-sm">{t(lang, 'topSection')}</span>
+          {/* Quick info */}
+          <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-xl overflow-hidden">
+            <CardContent className="p-4" dir="rtl">
+              <div className="flex items-center gap-3 justify-center">
+                <div className="flex items-center gap-1.5">
+                  <Zap className="w-4 h-4 text-yellow-400" />
+                  <span className="text-white/60 text-xs">{t(lang, 'pointsPerQuestion')}</span>
                 </div>
-
-                {leaderboard.length === 0 ? (
-                  <div className="text-center py-6">
-                    <Users className="w-10 h-10 text-white/15 mx-auto mb-2" />
-                    <p className="text-white/25 text-xs" dir="rtl">{t(lang, 'noPlayersYet')}</p>
-                  </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    {(showAllTop ? leaderboard : leaderboard.slice(0, 10)).map((entry, i) => (
-                      <motion.div
-                        key={entry.id}
-                        initial={{ opacity: 0, x: -5 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.03 }}
-                        className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
-                          i === 0 ? 'bg-yellow-500/10 border border-yellow-500/20' :
-                          i === 1 ? 'bg-gray-400/10 border border-gray-400/10' :
-                          i === 2 ? 'bg-amber-600/10 border border-amber-600/10' :
-                          'bg-white/[0.02] border border-white/5'
-                        }`}
-                        dir="rtl"
-                      >
-                        <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
-                          {i === 0 ? <Crown className="w-4 h-4 text-yellow-400" /> :
-                           i === 1 ? <Medal className="w-4 h-4 text-gray-300" /> :
-                           i === 2 ? <Medal className="w-4 h-4 text-amber-600" /> :
-                           <span className="text-white/40 text-[10px] font-bold">{i + 1}</span>}
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                          {entry.avatar ? (
-                            <img src={entry.avatar} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0 border border-white/10" />
-                          ) : (
-                            <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
-                              <UserPlus className="w-3 h-3 text-white/30" />
-                            </div>
-                          )}
-                          <p className="text-white/80 text-xs font-bold truncate">{entry.name}</p>
-                        </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                          <span className="text-yellow-300 text-xs font-bold">{entry.score}</span>
-                        </div>
-                      </motion.div>
-                    ))}
-                    {leaderboard.length > 10 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowAllTop(!showAllTop)}
-                        className="w-full text-white/40 hover:text-white/70 text-[10px] mt-1"
-                      >
-                        {showAllTop ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
-                        {showAllTop ? 'کەمتر ببینە' : `${leaderboard.length - 10} زیاتر...`}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* ====== ADMIN SECTION ====== */}
-          <div id="admin-section">
-            <AdminPanel />
-          </div>
+                <div className="w-px h-4 bg-white/10" />
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-blue-400" />
+                  <span className="text-white/60 text-xs">{t(lang, 'chooseAndStart')}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
       </div>
-    </div>
+    </motion.div>
+  )
+}
+
+// ===================== QUESTIONS BROWSER SECTION =====================
+function QuestionsSection() {
+  const lang = useAppStore(s => s.lang)
+  const { categories } = useCategories()
+  const [selectedCat, setSelectedCat] = useState<string>('')
+  const { questions, loading, refetch } = useQuestions(selectedCat || undefined)
+  const { playerName, setTab, setSelectedCategory, resetQuiz } = useAppStore()
+  const { toast } = useToast()
+
+  const getCatName = (cat: DBCategory) => lang === 'badini' ? cat.nameBadini : cat.nameSorani
+  const getQText = (q: DBQuestion) => lang === 'badini' ? q.textBadini : q.textSorani
+  const getOption = (q: DBQuestion, idx: number) => {
+    const key = `option${idx}${lang === 'badini' ? 'Badini' : 'Sorani'}` as keyof DBQuestion
+    return q[key] as string
+  }
+
+  const handleStartFromCategory = (catId: string) => {
+    if (!playerName.trim()) {
+      toast({ title: t(lang, 'enterNameToStart'), variant: 'destructive' })
+      return
+    }
+    setSelectedCategory(catId)
+    resetQuiz()
+    setTab('quiz')
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="max-w-5xl mx-auto px-4 pt-4 pb-8 space-y-4"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between" dir="rtl">
+        <div className="flex items-center gap-2">
+          <ListChecks className="w-5 h-5 text-blue-400" />
+          <h2 className="text-white font-bold text-lg">{t(lang, 'questionsTab')}</h2>
+        </div>
+        <span className="text-white/40 text-xs">{questions.length} {t(lang, 'questions')}</span>
+      </div>
+
+      {/* Category Filter */}
+      <div className="flex gap-2 overflow-x-auto pb-2" dir="rtl">
+        <button
+          onClick={() => { setSelectedCat(''); refetch() }}
+          className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            !selectedCat
+              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+              : 'bg-white/5 border border-white/10 text-white/60 hover:bg-white/10'
+          }`}
+        >
+          {t(lang, 'allCategories')}
+        </button>
+        {categories.map((cat) => (
+          <button
+            key={cat.id}
+            onClick={() => { setSelectedCat(cat.id); refetch() }}
+            className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              selectedCat === cat.id
+                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                : 'bg-white/5 border border-white/10 text-white/60 hover:bg-white/10'
+            }`}
+          >
+            {getCatName(cat)} ({cat._count?.questions || 0})
+          </button>
+        ))}
+        {selectedCat && (
+          <Button
+            onClick={() => handleStartFromCategory(selectedCat)}
+            className="flex-shrink-0 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl px-4 py-2 text-xs"
+          >
+            <Play className="w-3.5 h-3.5 mr-1.5" />
+            {t(lang, 'startQuiz')}
+          </Button>
+        )}
+      </div>
+
+      {/* Questions List */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : questions.length === 0 ? (
+        <div className="text-center py-12">
+          <BookOpen className="w-12 h-12 text-white/15 mx-auto mb-2" />
+          <p className="text-white/30 text-sm" dir="rtl">{t(lang, 'noQuestions')}</p>
+        </div>
+      ) : (
+        <ScrollArea className="max-h-[calc(100vh-220px)]">
+          <div className="space-y-2">
+            {questions.map((q, idx) => {
+              const catName = lang === 'badini' ? q.category.nameBadini : q.category.nameSorani
+              return (
+                <motion.div
+                  key={q.id}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.02 }}
+                >
+                  <Card className="bg-white/[0.04] border-white/[0.08] hover:bg-white/[0.06] transition-all overflow-hidden">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3" dir="rtl">
+                        <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/15 flex items-center justify-center text-xs font-bold text-blue-300">
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-purple-500/10 text-purple-300/70 border-purple-500/15 text-[9px] px-1.5 py-0">
+                              {catName}
+                            </Badge>
+                            <span className="text-yellow-400/50 text-[9px] flex items-center gap-0.5">
+                              <Star className="w-2.5 h-2.5 fill-yellow-400/50" /> ١٠ {t(lang, 'points')}
+                            </span>
+                          </div>
+                          <p className="text-white/90 text-sm leading-relaxed">{getQText(q)}</p>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {[1, 2, 3, 4].map((optIdx) => (
+                              <div
+                                key={optIdx}
+                                className={`px-3 py-1.5 rounded-lg text-xs ${
+                                  optIdx === q.correctAnswer
+                                    ? 'bg-green-500/10 border border-green-500/20 text-green-300'
+                                    : 'bg-white/[0.03] border border-white/5 text-white/50'
+                                }`}
+                              >
+                                <span className="text-white/30 ml-1">{optIdx}.</span>
+                                {getOption(q, optIdx)}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )
+            })}
+          </div>
+        </ScrollArea>
+      )}
+    </motion.div>
+  )
+}
+
+// ===================== TOP LEADERBOARD SECTION =====================
+function TopSection() {
+  const lang = useAppStore(s => s.lang)
+  const { leaderboard, loading, refetch } = useLeaderboard()
+  const [showAll, setShowAll] = useState(false)
+
+  useEffect(() => { refetch() }, [refetch])
+
+  const getRankIcon = (i: number) => {
+    if (i === 0) return <Crown className="w-5 h-5 text-yellow-400" />
+    if (i === 1) return <Medal className="w-5 h-5 text-gray-300" />
+    if (i === 2) return <Medal className="w-5 h-5 text-amber-600" />
+    return <span className="text-white/40 text-sm font-bold">{i + 1}</span>
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="max-w-3xl mx-auto px-4 pt-4 pb-8 space-y-4"
+    >
+      {/* Header */}
+      <div className="text-center" dir="rtl">
+        <div className="mx-auto mb-3 w-16 h-16 rounded-2xl bg-gradient-to-br from-yellow-500 via-amber-500 to-orange-500 flex items-center justify-center shadow-2xl shadow-yellow-500/30">
+          <Trophy className="w-8 h-8 text-white" />
+        </div>
+        <h2 className="text-2xl font-black text-white">{t(lang, 'topSection')}</h2>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="w-8 h-8 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : leaderboard.length === 0 ? (
+        <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-xl">
+          <CardContent className="p-8 text-center">
+            <Users className="w-12 h-12 text-white/15 mx-auto mb-3" />
+            <p className="text-white/30 text-sm" dir="rtl">{t(lang, 'noPlayersYet')}</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {/* Top 3 Podium */}
+          {leaderboard.length >= 3 && (
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {/* 2nd place */}
+              <Card className="bg-white/[0.04] backdrop-blur-xl border-gray-400/20 shadow-xl overflow-hidden order-1">
+                <CardContent className="p-3 text-center">
+                  <Medal className="w-8 h-8 text-gray-300 mx-auto mb-1" />
+                  <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-1 overflow-hidden border-2 border-gray-400/30">
+                    {leaderboard[1].avatar ? (
+                      <img src={leaderboard[1].avatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <UserPlus className="w-5 h-5 text-white/30" />
+                    )}
+                  </div>
+                  <p className="text-white/80 text-xs font-bold truncate">{leaderboard[1].name}</p>
+                  <div className="flex items-center justify-center gap-1 mt-1">
+                    <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                    <span className="text-yellow-300 text-xs font-bold">{leaderboard[1].score}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 1st place */}
+              <Card className="bg-white/[0.04] backdrop-blur-xl border-yellow-500/30 shadow-2xl overflow-hidden order-0 sm:order-0">
+                <div className="h-1 bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500" />
+                <CardContent className="p-3 text-center">
+                  <Crown className="w-10 h-10 text-yellow-400 mx-auto mb-1" />
+                  <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-1 overflow-hidden border-2 border-yellow-400/50">
+                    {leaderboard[0].avatar ? (
+                      <img src={leaderboard[0].avatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <UserPlus className="w-6 h-6 text-white/30" />
+                    )}
+                  </div>
+                  <p className="text-white/90 text-sm font-bold truncate">{leaderboard[0].name}</p>
+                  <div className="flex items-center justify-center gap-1 mt-1">
+                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                    <span className="text-yellow-300 text-sm font-bold">{leaderboard[0].score}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 3rd place */}
+              <Card className="bg-white/[0.04] backdrop-blur-xl border-amber-600/20 shadow-xl overflow-hidden order-2">
+                <CardContent className="p-3 text-center">
+                  <Medal className="w-8 h-8 text-amber-600 mx-auto mb-1" />
+                  <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-1 overflow-hidden border-2 border-amber-600/30">
+                    {leaderboard[2].avatar ? (
+                      <img src={leaderboard[2].avatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <UserPlus className="w-5 h-5 text-white/30" />
+                    )}
+                  </div>
+                  <p className="text-white/80 text-xs font-bold truncate">{leaderboard[2].name}</p>
+                  <div className="flex items-center justify-center gap-1 mt-1">
+                    <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                    <span className="text-yellow-300 text-xs font-bold">{leaderboard[2].score}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Rest of leaderboard */}
+          <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-xl overflow-hidden">
+            <CardContent className="p-4">
+              <ScrollArea className="max-h-[calc(100vh-380px)]">
+                <div className="space-y-1.5">
+                  {(showAll ? leaderboard : leaderboard.slice(0, 20)).map((entry, i) => (
+                    <motion.div
+                      key={entry.id}
+                      initial={{ opacity: 0, x: -5 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.03 }}
+                      className={`flex items-center gap-3 p-2.5 rounded-lg transition-all ${
+                        i === 0 ? 'bg-yellow-500/10 border border-yellow-500/20' :
+                        i === 1 ? 'bg-gray-400/10 border border-gray-400/10' :
+                        i === 2 ? 'bg-amber-600/10 border border-amber-600/10' :
+                        'bg-white/[0.02] border border-white/5'
+                      }`}
+                      dir="rtl"
+                    >
+                      <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                        {getRankIcon(i)}
+                      </div>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {entry.avatar ? (
+                          <img src={entry.avatar} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-white/10" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                            <UserPlus className="w-4 h-4 text-white/30" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-white/80 text-sm font-bold">{entry.name}</p>
+                          <p className="text-white/30 text-[10px]">{entry.correctCount} {t(lang, 'correctAnswers')}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                        <span className="text-yellow-300 text-sm font-bold">{entry.score}</span>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </ScrollArea>
+
+              {leaderboard.length > 20 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAll(!showAll)}
+                  className="w-full text-white/40 hover:text-white/70 text-xs mt-3"
+                >
+                  {showAll ? <ChevronUp className="w-3 h-3 mr-1" /> : <ChevronDown className="w-3 h-3 mr-1" />}
+                  {showAll ? 'کەمتر ببینە' : `${leaderboard.length - 20} زیاتر...`}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </motion.div>
   )
 }
 
 // ===================== QUIZ SECTION =====================
 function QuizSection() {
   const {
-    lang, playerName, playerAvatar, setSection,
+    lang, playerName, playerAvatar, setTab,
     quizQuestions, setQuizQuestions,
     currentQuestionIndex, setCurrentQuestionIndex,
     selectedAnswer, setSelectedAnswer,
     isAnswered, setIsAnswered,
     correctCount, incrementCorrect, incrementWrong,
     score, addScore, timeLeft, setTimeLeft,
-    selectedCategory, addPlayerToLeaderboard,
+    selectedCategory, participantId, setParticipantId,
   } = useAppStore()
 
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const { toast } = useToast()
   const [autoNextTimer, setAutoNextTimer] = useState<NodeJS.Timeout | null>(null)
+  const [quizLoaded, setQuizLoaded] = useState(false)
 
-  // Initialize quiz questions
+  // Load quiz questions from DB
   useEffect(() => {
     if (quizQuestions.length === 0) {
-      const filtered = selectedCategory
-        ? allQuestions.filter(q => (lang === 'badini' ? q.categoryBadini : q.categorySorani) === selectedCategory)
-        : allQuestions
-      setQuizQuestions(shuffleQuestions(filtered))
+      const fetchQuestions = async () => {
+        try {
+          const url = selectedCategory ? `/api/questions?categoryId=${selectedCategory}` : '/api/questions'
+          const res = await fetch(url)
+          if (res.ok) {
+            const data: DBQuestion[] = await res.json()
+            // Shuffle questions
+            const shuffled = [...data].sort(() => Math.random() - 0.5)
+            setQuizQuestions(shuffled)
+          }
+        } catch (e) {
+          console.error('Failed to load quiz questions', e)
+        } finally {
+          setQuizLoaded(true)
+        }
+      }
+      fetchQuestions()
+    } else {
+      setQuizLoaded(true)
     }
-  }, [quizQuestions.length, selectedCategory, lang, setQuizQuestions])
+  }, [quizQuestions.length, selectedCategory, setQuizQuestions])
+
+  // Create participant on first quiz load
+  useEffect(() => {
+    if (!participantId && playerName.trim()) {
+      const createParticipant = async () => {
+        try {
+          const res = await fetch('/api/participants', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: playerName, avatar: playerAvatar }),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            setParticipantId(data.id)
+          }
+        } catch (e) {
+          console.error('Failed to create participant', e)
+        }
+      }
+      createParticipant()
+    }
+  }, [participantId, playerName, playerAvatar, setParticipantId])
 
   // Timer
   useEffect(() => {
@@ -842,7 +1155,6 @@ function QuizSection() {
       const current = useAppStore.getState().timeLeft
       if (current <= 1) {
         clearInterval(timerRef.current!)
-        // Time's up - auto mark as wrong
         setIsAnswered(true)
         incrementWrong()
         setSelectedAnswer(0)
@@ -856,7 +1168,7 @@ function QuizSection() {
     }
   }, [currentQuestionIndex, isAnswered, quizQuestions.length])
 
-  // Cleanup auto-next timer
+  // Cleanup
   useEffect(() => {
     return () => {
       if (autoNextTimer) clearTimeout(autoNextTimer)
@@ -864,15 +1176,23 @@ function QuizSection() {
   }, [autoNextTimer])
 
   const currentQ = quizQuestions[currentQuestionIndex]
+
+  if (!quizLoaded) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-10 h-10 border-3 border-blue-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
   if (!currentQ) {
-    // No questions available
     return (
       <div className="max-w-lg mx-auto px-4 py-12 text-center">
         <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10">
           <CardContent className="p-8">
             <BookOpen className="w-12 h-12 text-white/20 mx-auto mb-3" />
             <p className="text-white/50 text-sm" dir="rtl">{t(lang, 'noQuestions')}</p>
-            <Button onClick={() => setSection('home')} className="mt-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl">
+            <Button onClick={() => setTab('home')} className="mt-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl">
               {t(lang, 'backToHome')}
             </Button>
           </CardContent>
@@ -881,25 +1201,43 @@ function QuizSection() {
     )
   }
 
-  const getOptionText = (index: number) => {
-    const key = `option${index}${lang === 'badini' ? 'Badini' : 'Sorani'}` as keyof HardcodedQuestion
-    return currentQ[key] as string
+  const getOptionText = (q: DBQuestion, idx: number) => {
+    const key = `option${idx}${lang === 'badini' ? 'Badini' : 'Sorani'}` as keyof DBQuestion
+    return q[key] as string
   }
 
-  const handleAnswer = (optionIndex: number) => {
+  const handleAnswer = async (optionIndex: number) => {
     if (isAnswered) return
 
-    // Stop timer
     if (timerRef.current) clearInterval(timerRef.current)
 
     setSelectedAnswer(optionIndex)
     setIsAnswered(true)
 
-    if (optionIndex === currentQ.correctAnswer) {
+    const isCorrect = optionIndex === currentQ.correctAnswer
+    if (isCorrect) {
       incrementCorrect()
       addScore(10)
     } else {
       incrementWrong()
+    }
+
+    // Save answer to DB
+    if (participantId) {
+      try {
+        await fetch('/api/answers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            participantId,
+            questionId: currentQ.id,
+            selectedAnswer: optionIndex,
+            correctAnswer: currentQ.correctAnswer,
+          }),
+        })
+      } catch (e) {
+        console.error('Failed to save answer', e)
+      }
     }
 
     // Auto next after 2 seconds
@@ -913,18 +1251,30 @@ function QuizSection() {
     if (autoNextTimer) clearTimeout(autoNextTimer)
 
     if (currentQuestionIndex + 1 >= quizQuestions.length) {
-      // Quiz complete - save to leaderboard and go to results
-      const state = useAppStore.getState()
-      addPlayerToLeaderboard({
-        id: `player_${Date.now()}`,
-        name: state.playerName,
-        avatar: state.playerAvatar,
-        score: state.score,
-        correctCount: state.correctCount,
-        totalAnswered: state.correctCount + state.wrongCount,
-        createdAt: Date.now(),
-      })
-      setSection('results')
+      // Quiz complete - save score and go to results
+      const saveScore = async () => {
+        const state = useAppStore.getState()
+        const pid = state.participantId
+        if (pid) {
+          try {
+            await fetch('/api/scores', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                participantId: pid,
+                points: state.score,
+                correctCount: state.correctCount,
+                totalAnswered: state.correctCount + state.wrongCount,
+                categoryId: selectedCategory || null,
+              }),
+            })
+          } catch (e) {
+            console.error('Failed to save score', e)
+          }
+        }
+        setTab('results')
+      }
+      saveScore()
     } else {
       setCurrentQuestionIndex(currentQuestionIndex + 1)
       setSelectedAnswer(null)
@@ -935,166 +1285,163 @@ function QuizSection() {
 
   const getOptionStyle = (optIndex: number) => {
     if (!isAnswered) {
-      return 'border-white/10 bg-white/[0.03] hover:border-purple-400/40 hover:bg-white/[0.06] cursor-pointer'
+      return 'border-white/10 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/20 cursor-pointer'
     }
     if (optIndex === currentQ.correctAnswer) {
-      return 'border-green-500/60 bg-green-500/15 shadow-lg shadow-green-500/10'
+      return 'border-green-500/50 bg-green-500/10 shadow-lg shadow-green-500/10'
     }
     if (optIndex === selectedAnswer && optIndex !== currentQ.correctAnswer) {
-      return 'border-red-500/60 bg-red-500/15 shadow-lg shadow-red-500/10'
+      return 'border-red-500/50 bg-red-500/10 shadow-lg shadow-red-500/10'
     }
     return 'border-white/5 bg-white/[0.01] opacity-50'
   }
 
-  const questionText = lang === 'badini' ? currentQ.textBadini : currentQ.textSorani
-  const categoryName = lang === 'badini' ? currentQ.categoryBadini : currentQ.categorySorani
+  const getOptionIcon = (optIndex: number) => {
+    if (!isAnswered) return null
+    if (optIndex === currentQ.correctAnswer) return <CheckCircle2 className="w-5 h-5 text-green-400" />
+    if (optIndex === selectedAnswer && optIndex !== currentQ.correctAnswer) return <XCircle className="w-5 h-5 text-red-400" />
+    return null
+  }
+
+  const catName = lang === 'badini' ? currentQ.category.nameBadini : currentQ.category.nameSorani
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
-      {/* Quiz Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2" dir="rtl">
-          {playerAvatar ? (
-            <img src={playerAvatar} alt="" className="w-8 h-8 rounded-full object-cover border border-white/10" />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-              <UserPlus className="w-4 h-4 text-white/30" />
-            </div>
-          )}
-          <span className="text-white/70 text-xs font-bold">{playerName}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-            <span className="text-yellow-300 text-sm font-bold">{score}</span>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSection('home')}
-            className="text-white/40 hover:text-white/70 text-xs"
-          >
-            <HomeIcon className="w-4 h-4 mr-1" />
-            HOME
-          </Button>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="max-w-2xl mx-auto px-4 pt-4 pb-8"
+    >
+      {/* Top bar */}
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => setTab('home')}
+          className="flex items-center gap-1.5 text-white/50 hover:text-white/80 text-xs transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          {t(lang, 'backToHome')}
+        </button>
+        <div className="flex items-center gap-2">
+          <Badge className="bg-purple-500/10 text-purple-300/70 border-purple-500/15 text-[10px]">
+            {catName}
+          </Badge>
+          <Badge className="bg-yellow-500/10 text-yellow-300/70 border-yellow-500/15 text-[10px] flex items-center gap-1">
+            <Star className="w-2.5 h-2.5 fill-yellow-400" />
+            {score}
+          </Badge>
         </div>
       </div>
 
-      {/* Timer + Progress */}
-      <div className="flex items-center gap-3">
-        <CircularTimer timeLeft={timeLeft} maxTime={120} />
-        <div className="flex-1">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-white/50 text-[10px]">
-              {t(lang, 'question')} {currentQuestionIndex + 1} {t(lang, 'of')} {quizQuestions.length}
-            </span>
-            <Badge className="bg-blue-500/10 text-blue-300/60 border-blue-500/15 text-[8px] px-1.5">
-              {categoryName}
-            </Badge>
+      <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-2xl overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-red-500" />
+        <CardContent className="p-6 space-y-5">
+          {/* Timer + Progress */}
+          <div className="flex items-center justify-between">
+            <CircularTimer timeLeft={timeLeft} maxTime={120} />
+            <div className="text-center" dir="rtl">
+              <span className="text-white/40 text-xs">{t(lang, 'question')}</span>
+              <div className="text-white font-bold text-lg">
+                {currentQuestionIndex + 1} {t(lang, 'of')} {quizQuestions.length}
+              </div>
+            </div>
           </div>
+
           {/* Progress bar */}
-          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+          <div className="w-full bg-white/5 rounded-full h-1.5">
             <motion.div
-              className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 rounded-full"
+              className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 rounded-full"
+              initial={{ width: 0 }}
               animate={{ width: `${((currentQuestionIndex + 1) / quizQuestions.length) * 100}%` }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.3 }}
             />
           </div>
-        </div>
-      </div>
 
-      {/* Answer Feedback */}
-      <AnimatePresence>
-        {isAnswered && (
-          <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0 }}
-            className={`text-center py-2 px-4 rounded-xl text-sm font-bold ${
-              selectedAnswer === currentQ.correctAnswer
-                ? 'bg-green-500/15 border border-green-500/30 text-green-300'
-                : timeLeft <= 0
-                ? 'bg-amber-500/15 border border-amber-500/30 text-amber-300'
-                : 'bg-red-500/15 border border-red-500/30 text-red-300'
-            }`}
-            dir="rtl"
-          >
-            {selectedAnswer === currentQ.correctAnswer ? (
-              <span className="flex items-center justify-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> {t(lang, 'correct')}</span>
-            ) : timeLeft <= 0 ? (
-              <span className="flex items-center justify-center gap-1.5"><XCircle className="w-4 h-4" /> {t(lang, 'timeUp')}</span>
-            ) : (
-              <span className="flex items-center justify-center gap-1.5"><XCircle className="w-4 h-4" /> {t(lang, 'wrong')}</span>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Question Card */}
-      <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-xl overflow-hidden">
-        <CardContent className="p-5">
-          <h2 className="text-white text-base font-bold leading-relaxed mb-4" dir="rtl">
-            {questionText}
-          </h2>
+          {/* Question */}
+          <div className="text-center" dir="rtl">
+            <motion.p
+              key={currentQuestionIndex}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-white text-lg font-bold leading-relaxed"
+            >
+              {lang === 'badini' ? currentQ.textBadini : currentQ.textSorani}
+            </motion.p>
+          </div>
 
           {/* Options */}
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[1, 2, 3, 4].map((optIdx) => (
               <motion.button
                 key={optIdx}
-                whileHover={!isAnswered ? { scale: 1.01 } : {}}
-                whileTap={!isAnswered ? { scale: 0.99 } : {}}
+                whileHover={!isAnswered ? { scale: 1.02 } : {}}
+                whileTap={!isAnswered ? { scale: 0.98 } : {}}
                 onClick={() => handleAnswer(optIdx)}
                 disabled={isAnswered}
-                className={`w-full p-3 rounded-xl border-2 transition-all duration-300 text-right ${getOptionStyle(optIdx)}`}
+                className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-300 ${getOptionStyle(optIdx)}`}
                 dir="rtl"
               >
-                <div className="flex items-center gap-2">
-                  <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                    isAnswered && optIdx === currentQ.correctAnswer
-                      ? 'bg-green-500/20 text-green-300 border border-green-500/30'
-                      : isAnswered && optIdx === selectedAnswer && optIdx !== currentQ.correctAnswer
-                      ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                      : 'bg-white/5 text-white/50 border border-white/10'
-                  }`}>
-                    {isAnswered && optIdx === currentQ.correctAnswer ? <CheckCircle2 className="w-3.5 h-3.5" /> :
-                     isAnswered && optIdx === selectedAnswer && optIdx !== currentQ.correctAnswer ? <XCircle className="w-3.5 h-3.5" /> :
-                     optIdx}
-                  </span>
-                  <span className="text-white/80 text-sm">{getOptionText(optIdx)}</span>
-                </div>
+                <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                  isAnswered && optIdx === currentQ.correctAnswer ? 'bg-green-500/20 text-green-300' :
+                  isAnswered && optIdx === selectedAnswer && optIdx !== currentQ.correctAnswer ? 'bg-red-500/20 text-red-300' :
+                  'bg-white/5 text-white/50'
+                }`}>
+                  {optIdx}
+                </span>
+                <span className="text-white/90 text-sm flex-1 text-right">{getOptionText(currentQ, optIdx)}</span>
+                {getOptionIcon(optIdx)}
               </motion.button>
             ))}
           </div>
 
-          {/* Manual Next Button */}
-          {isAnswered && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-4"
-            >
-              <Button
-                onClick={handleNext}
-                className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-red-600 text-white font-bold rounded-xl py-3"
+          {/* Feedback */}
+          <AnimatePresence>
+            {isAnswered && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className={`text-center p-3 rounded-xl ${
+                  selectedAnswer === currentQ.correctAnswer
+                    ? 'bg-green-500/10 border border-green-500/20'
+                    : 'bg-red-500/10 border border-red-500/20'
+                }`}
+                dir="rtl"
               >
-                {currentQuestionIndex + 1 >= quizQuestions.length ? t(lang, 'viewResults') : t(lang, 'nextQuestion')}
-                <ArrowRight className="w-4 h-4 ml-1.5" />
-              </Button>
-            </motion.div>
+                {selectedAnswer === currentQ.correctAnswer ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-400" />
+                    <span className="text-green-300 font-bold text-sm">{t(lang, 'correct')}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-2">
+                    <XCircle className="w-5 h-5 text-red-400" />
+                    <span className="text-red-300 font-bold text-sm">{t(lang, 'wrong')}</span>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Next button (manual) */}
+          {isAnswered && (
+            <Button
+              onClick={handleNext}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-xl py-4"
+            >
+              {currentQuestionIndex + 1 >= quizQuestions.length ? t(lang, 'viewResults') : t(lang, 'nextQuestion')}
+            </Button>
           )}
         </CardContent>
       </Card>
-    </div>
+    </motion.div>
   )
 }
 
 // ===================== RESULTS SECTION =====================
 function ResultsSection() {
-  const { lang, playerName, playerAvatar, correctCount, wrongCount, score, setSection, resetQuiz, leaderboard } = useAppStore()
-  const totalQuestions = correctCount + wrongCount
-  const percentage = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0
-  const playerRank = leaderboard.findIndex(p => p.name === playerName) + 1
+  const { lang, setTab, playerName, playerAvatar, score, correctCount, wrongCount, resetQuiz } = useAppStore()
+  const total = correctCount + wrongCount
+  const percentage = total > 0 ? Math.round((correctCount / total) * 100) : 0
 
   const getMessage = () => {
     if (percentage >= 80) return t(lang, 'excellent')
@@ -1104,245 +1451,485 @@ function ResultsSection() {
 
   const getMessageColor = () => {
     if (percentage >= 80) return 'text-green-400'
-    if (percentage >= 50) return 'text-amber-400'
+    if (percentage >= 50) return 'text-yellow-400'
     return 'text-red-400'
   }
 
-  const handlePlayAgain = () => {
-    resetQuiz()
-    setSection('quiz')
-  }
-
-  const handleHome = () => {
-    resetQuiz()
-    setSection('home')
-  }
-
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
-      {/* Result Card */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: 'spring', stiffness: 200 }}
-      >
-        <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-2xl overflow-hidden">
-          <div className="h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-red-500" />
-          <CardContent className="p-6 text-center space-y-4">
-            {/* Player Info */}
-            <div className="flex flex-col items-center gap-2">
-              {playerAvatar ? (
-                <img src={playerAvatar} alt="" className="w-16 h-16 rounded-full object-cover border-2 border-white/20" />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
-                  <UserPlus className="w-8 h-8 text-white/30" />
-                </div>
-              )}
-              <h2 className="text-white font-bold text-lg" dir="rtl">{playerName}</h2>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="max-w-lg mx-auto px-4 py-8"
+    >
+      <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-2xl overflow-hidden">
+        <div className="h-1.5 bg-gradient-to-r from-blue-500 via-purple-500 to-red-500" />
+        <CardContent className="p-8 space-y-6 text-center">
+          {/* Trophy */}
+          <motion.div
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 200 }}
+          >
+            <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-br from-yellow-500 to-amber-600 flex items-center justify-center shadow-2xl shadow-yellow-500/30">
+              <Trophy className="w-12 h-12 text-white" />
             </div>
+          </motion.div>
 
-            {/* Score Circle */}
-            <div className="relative w-32 h-32 mx-auto">
-              <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="42" stroke="rgba(255,255,255,0.08)" strokeWidth="6" fill="none" />
-                <circle
-                  cx="50" cy="50" r="42"
-                  stroke={percentage >= 80 ? '#22c55e' : percentage >= 50 ? '#f59e0b' : '#ef4444'}
-                  strokeWidth="6"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeDasharray={`${2 * Math.PI * 42}`}
-                  strokeDashoffset={`${2 * Math.PI * 42 * (1 - percentage / 100)}`}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-black text-white">{score}</span>
-                <span className="text-white/40 text-[9px]">{t(lang, 'points')}</span>
-              </div>
+          <h2 className="text-2xl font-black text-white" dir="rtl">{t(lang, 'quizComplete')}</h2>
+
+          {/* Score Circle */}
+          <div className="relative w-32 h-32 mx-auto">
+            <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="40" stroke="rgba(255,255,255,0.08)" strokeWidth="8" fill="none" />
+              <motion.circle
+                cx="50" cy="50" r="40"
+                stroke={percentage >= 80 ? '#22c55e' : percentage >= 50 ? '#eab308' : '#ef4444'}
+                strokeWidth="8"
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 40}
+                initial={{ strokeDashoffset: 2 * Math.PI * 40 }}
+                animate={{ strokeDashoffset: 2 * Math.PI * 40 * (1 - percentage / 100) }}
+                transition={{ duration: 1, delay: 0.3 }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-3xl font-black text-white">{score}</span>
+              <span className="text-white/40 text-xs">{t(lang, 'points')}</span>
             </div>
+          </div>
 
-            {/* Message */}
-            <p className={`text-lg font-bold ${getMessageColor()}`} dir="rtl">{getMessage()}</p>
+          {/* Message */}
+          <p className={`text-lg font-bold ${getMessageColor()}`} dir="rtl">{getMessage()}</p>
 
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-2">
-                <p className="text-green-400 text-xl font-bold">{correctCount}</p>
-                <p className="text-green-300/50 text-[9px]" dir="rtl">{t(lang, 'correctAnswers')}</p>
-              </div>
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-2">
-                <p className="text-red-400 text-xl font-bold">{wrongCount}</p>
-                <p className="text-red-300/50 text-[9px]" dir="rtl">{t(lang, 'wrongAnswers')}</p>
-              </div>
-              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-2">
-                <p className="text-yellow-400 text-xl font-bold">#{playerRank || '-'}</p>
-                <p className="text-yellow-300/50 text-[9px]" dir="rtl">{t(lang, 'rank')}</p>
-              </div>
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-3" dir="rtl">
+            <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
+              <CheckCircle2 className="w-5 h-5 text-green-400 mx-auto mb-1" />
+              <p className="text-green-300 text-lg font-bold">{correctCount}</p>
+              <p className="text-green-300/50 text-[10px]">{t(lang, 'correctAnswers')}</p>
             </div>
-
-            {/* Buttons */}
-            <div className="flex gap-2 pt-2">
-              <Button
-                onClick={handlePlayAgain}
-                className="flex-1 bg-gradient-to-r from-blue-600 via-purple-600 to-red-600 text-white font-bold rounded-xl py-3"
-              >
-                <RotateCcw className="w-4 h-4 mr-1.5" />
-                {t(lang, 'playAgain')}
-              </Button>
-              <Button
-                onClick={handleHome}
-                variant="outline"
-                className="flex-1 bg-white/5 border-white/10 text-white/70 hover:bg-white/10 rounded-xl py-3"
-              >
-                <HomeIcon className="w-4 h-4 mr-1.5" />
-                HOME
-              </Button>
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+              <XCircle className="w-5 h-5 text-red-400 mx-auto mb-1" />
+              <p className="text-red-300 text-lg font-bold">{wrongCount}</p>
+              <p className="text-red-300/50 text-[10px]">{t(lang, 'wrongAnswers')}</p>
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </div>
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
+              <Star className="w-5 h-5 text-yellow-400 mx-auto mb-1" />
+              <p className="text-yellow-300 text-lg font-bold">{percentage}%</p>
+              <p className="text-yellow-300/50 text-[10px]">{t(lang, 'score')}</p>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <Button
+              onClick={() => { resetQuiz(); setTab('home') }}
+              variant="outline"
+              className="flex-1 bg-white/5 border-white/10 text-white/70 hover:bg-white/10 rounded-xl py-3"
+            >
+              <Gamepad2 className="w-4 h-4 mr-2" />
+              {t(lang, 'backToHome')}
+            </Button>
+            <Button
+              onClick={() => { resetQuiz(); setTab('quiz') }}
+              className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-xl py-3"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              {t(lang, 'playAgain')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   )
 }
 
-// ===================== ADMIN PANEL (inline) =====================
-function AdminPanel() {
-  const { lang, isAdminAuth, setIsAdminAuth } = useAppStore()
-  const [adminTab, setAdminTab] = useState<'questions' | 'manage'>('questions')
+// ===================== ADMIN SECTION =====================
+function AdminSection() {
+  const { lang, setIsAdminAuth, isAdminAuth, setTab } = useAppStore()
+  const { categories, refetch: refetchCats } = useCategories()
+  const [activeAdminTab, setActiveAdminTab] = useState<'categories' | 'questions'>('categories')
+  const [selectedCatForQuestions, setSelectedCatForQuestions] = useState<string>('')
+  const { questions, refetch: refetchQuestions } = useQuestions(selectedCatForQuestions || undefined)
   const { toast } = useToast()
 
-  if (!isAdminAuth) return null
+  // New category form
+  const [newCatBadini, setNewCatBadini] = useState('')
+  const [newCatSorani, setNewCatSorani] = useState('')
 
-  // Simple state for adding questions
-  const [newQ, setNewQ] = useState({
-    categoryBadini: '',
-    categorySorani: '',
-    textBadini: '',
-    textSorani: '',
-    option1Badini: '', option1Sorani: '',
-    option2Badini: '', option2Sorani: '',
-    option3Badini: '', option3Sorani: '',
-    option4Badini: '', option4Sorani: '',
-    correctAnswer: 1,
-  })
+  // New question form
+  const [newQCatId, setNewQCatId] = useState('')
+  const [newQTextBadini, setNewQTextBadini] = useState('')
+  const [newQTextSorani, setNewQTextSorani] = useState('')
+  const [newQOpt1Badini, setNewQOpt1Badini] = useState('')
+  const [newQOpt1Sorani, setNewQOpt1Sorani] = useState('')
+  const [newQOpt2Badini, setNewQOpt2Badini] = useState('')
+  const [newQOpt2Sorani, setNewQOpt2Sorani] = useState('')
+  const [newQOpt3Badini, setNewQOpt3Badini] = useState('')
+  const [newQOpt3Sorani, setNewQOpt3Sorani] = useState('')
+  const [newQOpt4Badini, setNewQOpt4Badini] = useState('')
+  const [newQOpt4Sorani, setNewQOpt4Sorani] = useState('')
+  const [newQCorrect, setNewQCorrect] = useState(1)
 
-  const handleAddQuestion = () => {
-    // Add to the hardcoded questions array at runtime
-    const q: HardcodedQuestion = {
-      id: `q_custom_${Date.now()}`,
-      ...newQ,
-    }
-    allQuestions.push(q)
-    toast({ title: 'پرسیار زیاد بوو!', description: 'Question added at runtime (add to src/lib/questions.ts for persistence)' })
-    setNewQ({
-      categoryBadini: '', categorySorani: '',
-      textBadini: '', textSorani: '',
-      option1Badini: '', option1Sorani: '',
-      option2Badini: '', option2Sorani: '',
-      option3Badini: '', option3Sorani: '',
-      option4Badini: '', option4Sorani: '',
-      correctAnswer: 1,
-    })
+  if (!isAdminAuth) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-12 text-center">
+        <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10">
+          <CardContent className="p-8">
+            <Shield className="w-12 h-12 text-white/20 mx-auto mb-3" />
+            <p className="text-white/50 text-sm" dir="rtl">{t(lang, 'adminPanel')}</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
+  const handleAddCategory = async () => {
+    if (!newCatBadini.trim() || !newCatSorani.trim()) return
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nameBadini: newCatBadini, nameSorani: newCatSorani }),
+      })
+      if (res.ok) {
+        toast({ title: t(lang, 'successAdded') })
+        setNewCatBadini('')
+        setNewCatSorani('')
+        refetchCats()
+      } else {
+        toast({ title: t(lang, 'errorAdded'), variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: t(lang, 'errorAdded'), variant: 'destructive' })
+    }
+  }
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!confirm(t(lang, 'confirmDelete'))) return
+    try {
+      const res = await fetch(`/api/categories?id=${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        refetchCats()
+        refetchQuestions()
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleAddQuestion = async () => {
+    if (!newQTextBadini.trim() || !newQTextSorani.trim() || !newQCatId) return
+    try {
+      const res = await fetch('/api/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          textBadini: newQTextBadini,
+          textSorani: newQTextSorani,
+          option1Badini: newQOpt1Badini, option1Sorani: newQOpt1Sorani,
+          option2Badini: newQOpt2Badini, option2Sorani: newQOpt2Sorani,
+          option3Badini: newQOpt3Badini, option3Sorani: newQOpt3Sorani,
+          option4Badini: newQOpt4Badini, option4Sorani: newQOpt4Sorani,
+          correctAnswer: newQCorrect,
+          categoryId: newQCatId,
+        }),
+      })
+      if (res.ok) {
+        toast({ title: t(lang, 'successAdded') })
+        setNewQTextBadini('')
+        setNewQTextSorani('')
+        setNewQOpt1Badini('')
+        setNewQOpt1Sorani('')
+        setNewQOpt2Badini('')
+        setNewQOpt2Sorani('')
+        setNewQOpt3Badini('')
+        setNewQOpt3Sorani('')
+        setNewQOpt4Badini('')
+        setNewQOpt4Sorani('')
+        setNewQCorrect(1)
+        refetchQuestions()
+        refetchCats()
+      } else {
+        toast({ title: t(lang, 'errorAdded'), variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: t(lang, 'errorAdded'), variant: 'destructive' })
+    }
+  }
+
+  const handleDeleteQuestion = async (id: string) => {
+    if (!confirm(t(lang, 'confirmDelete'))) return
+    try {
+      const res = await fetch(`/api/questions?id=${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        refetchQuestions()
+        refetchCats()
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const inputClass = "w-full bg-white/5 border border-white/10 text-white placeholder:text-white/20 rounded-xl h-10 text-xs px-3 focus:border-purple-400/50 focus:outline-none"
+
   return (
-    <Card className="bg-white/[0.04] backdrop-blur-xl border-orange-500/20 shadow-xl overflow-hidden">
-      <div className="h-1 bg-gradient-to-r from-orange-500 via-red-500 to-yellow-500" />
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2" dir="rtl">
-            <Shield className="w-4 h-4 text-orange-400" />
-            <span className="text-white font-bold text-sm">{t(lang, 'adminPanel')}</span>
-          </div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="max-w-4xl mx-auto px-4 pt-4 pb-8 space-y-4"
+    >
+      {/* Admin Header */}
+      <div className="flex items-center justify-between" dir="rtl">
+        <div className="flex items-center gap-2">
+          <Shield className="w-5 h-5 text-orange-400" />
+          <h2 className="text-white font-bold text-lg">{t(lang, 'adminPanel')}</h2>
+        </div>
+        <div className="flex gap-2">
           <Button
-            variant="ghost"
+            onClick={() => { setIsAdminAuth(false); setTab('home') }}
+            variant="outline"
             size="sm"
-            onClick={() => setIsAdminAuth(false)}
-            className="text-red-400/60 hover:text-red-400 text-[10px]"
+            className="bg-red-500/10 border-red-500/20 text-red-300 hover:bg-red-500/20 rounded-xl text-xs"
           >
-            <Trash2 className="w-3 h-3 mr-1" />
+            <ArrowLeft className="w-3.5 h-3.5 mr-1" />
             {t(lang, 'logout')}
           </Button>
         </div>
+      </div>
 
-        {/* Add Question Form */}
-        <div className="space-y-2">
-          <h4 className="text-white/60 text-[10px] font-semibold" dir="rtl">{t(lang, 'addQuestion')}</h4>
+      {/* Admin Tabs */}
+      <div className="flex gap-2" dir="rtl">
+        <button
+          onClick={() => setActiveAdminTab('categories')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeAdminTab === 'categories'
+              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+              : 'bg-white/5 border border-white/10 text-white/60 hover:bg-white/10'
+          }`}
+        >
+          {t(lang, 'manageCategories')}
+        </button>
+        <button
+          onClick={() => setActiveAdminTab('questions')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeAdminTab === 'questions'
+              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+              : 'bg-white/5 border border-white/10 text-white/60 hover:bg-white/10'
+          }`}
+        >
+          {t(lang, 'manageQuestions')}
+        </button>
+      </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              value={newQ.categoryBadini}
-              onChange={e => setNewQ({ ...newQ, categoryBadini: e.target.value })}
-              placeholder="جۆر ب بادینی"
-              className="bg-white/5 border-white/10 text-white placeholder:text-white/20 rounded-lg h-8 text-[10px]"
-              dir="rtl"
-            />
-            <Input
-              value={newQ.categorySorani}
-              onChange={e => setNewQ({ ...newQ, categorySorani: e.target.value })}
-              placeholder="جۆر ب سورانی"
-              className="bg-white/5 border-white/10 text-white placeholder:text-white/20 rounded-lg h-8 text-[10px]"
-              dir="rtl"
-            />
-          </div>
-
-          <Input
-            value={newQ.textBadini}
-            onChange={e => setNewQ({ ...newQ, textBadini: e.target.value })}
-            placeholder="پرسیار ب بادینی"
-            className="bg-white/5 border-white/10 text-white placeholder:text-white/20 rounded-lg h-8 text-[10px]"
-            dir="rtl"
-          />
-          <Input
-            value={newQ.textSorani}
-            onChange={e => setNewQ({ ...newQ, textSorani: e.target.value })}
-            placeholder="پرسیار ب سورانی"
-            className="bg-white/5 border-white/10 text-white placeholder:text-white/20 rounded-lg h-8 text-[10px]"
-            dir="rtl"
-          />
-
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="grid grid-cols-2 gap-1.5 items-center">
-              <div className="flex items-center gap-1">
-                <input
-                  type="radio"
-                  name="correctAnswer"
-                  checked={newQ.correctAnswer === i}
-                  onChange={() => setNewQ({ ...newQ, correctAnswer: i })}
-                  className="accent-green-500"
-                />
-                <Input
-                  value={newQ[`option${i}Badini` as keyof typeof newQ]}
-                  onChange={e => setNewQ({ ...newQ, [`option${i}Badini`]: e.target.value })}
-                  placeholder={`هەڵبژارتن ${i} بادینی`}
-                  className="bg-white/5 border-white/10 text-white placeholder:text-white/20 rounded-lg h-7 text-[9px]"
-                  dir="rtl"
-                />
+      {/* Categories Tab */}
+      {activeAdminTab === 'categories' && (
+        <div className="space-y-4">
+          {/* Add Category Form */}
+          <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-xl overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-green-500 to-emerald-500" />
+            <CardContent className="p-4 space-y-3" dir="rtl">
+              <h3 className="text-white/70 text-sm font-bold flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                {t(lang, 'addNewCategory')}
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-white/40 text-[10px] mb-1 block">{t(lang, 'categoryNameBadini')}</Label>
+                  <Input value={newCatBadini} onChange={(e) => setNewCatBadini(e.target.value)} className={inputClass} placeholder="ئایینی" dir="rtl" />
+                </div>
+                <div>
+                  <Label className="text-white/40 text-[10px] mb-1 block">{t(lang, 'categoryNameSorani')}</Label>
+                  <Input value={newCatSorani} onChange={(e) => setNewCatSorani(e.target.value)} className={inputClass} placeholder="ئایینی" dir="rtl" />
+                </div>
               </div>
-              <Input
-                value={newQ[`option${i}Sorani` as keyof typeof newQ]}
-                onChange={e => setNewQ({ ...newQ, [`option${i}Sorani`]: e.target.value })}
-                placeholder={`هەڵبژارتن ${i} سورانی`}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 rounded-lg h-7 text-[9px]"
-                dir="rtl"
-              />
-            </div>
-          ))}
+              <Button onClick={handleAddCategory} disabled={!newCatBadini.trim() || !newCatSorani.trim()} className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl text-sm">
+                <Plus className="w-4 h-4 mr-1.5" />
+                {t(lang, 'addCategory')}
+              </Button>
+            </CardContent>
+          </Card>
 
-          <Button
-            onClick={handleAddQuestion}
-            disabled={!newQ.textBadini.trim() || !newQ.textSorani.trim()}
-            className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white font-bold rounded-xl text-xs py-2 disabled:opacity-40"
-          >
-            <Plus className="w-3.5 h-3.5 mr-1" />
-            {t(lang, 'addQuestion')}
-          </Button>
-
-          <p className="text-white/20 text-[8px] text-center" dir="rtl">
-            بۆ هەمیشە پرسیار زیادبکە: فایلی src/lib/questions.ts بگۆڕە
-          </p>
+          {/* Category List */}
+          <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-xl overflow-hidden">
+            <CardContent className="p-4">
+              <div className="space-y-2">
+                {categories.map((cat) => (
+                  <div key={cat.id} className="flex items-center justify-between p-3 bg-white/[0.03] border border-white/5 rounded-xl" dir="rtl">
+                    <div>
+                      <p className="text-white/80 text-sm font-bold">{cat.nameBadini}</p>
+                      <p className="text-white/30 text-[10px]">{cat.nameSorani} - {cat._count?.questions || 0} {t(lang, 'questions')}</p>
+                    </div>
+                    <Button
+                      onClick={() => handleDeleteCategory(cat.id)}
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded-lg h-8 w-8 p-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      </CardContent>
-    </Card>
+      )}
+
+      {/* Questions Tab */}
+      {activeAdminTab === 'questions' && (
+        <div className="space-y-4">
+          {/* Add Question Form */}
+          <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-xl overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-blue-500 to-purple-500" />
+            <CardContent className="p-4 space-y-3" dir="rtl">
+              <h3 className="text-white/70 text-sm font-bold flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                {t(lang, 'addNewQuestion')}
+              </h3>
+
+              {/* Category Select */}
+              <div>
+                <Label className="text-white/40 text-[10px] mb-1 block">{t(lang, 'selectCategoryForQuestion')}</Label>
+                <select value={newQCatId} onChange={(e) => setNewQCatId(e.target.value)} className={inputClass + " appearance-none cursor-pointer"} dir="rtl">
+                  <option value="" className="bg-[#0d1442]">-- {t(lang, 'selectCategoryForQuestion')} --</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id} className="bg-[#0d1442]">{cat.nameBadini} / {cat.nameSorani}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Question Text */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-white/40 text-[10px] mb-1 block">{t(lang, 'questionTextBadini')}</Label>
+                  <Input value={newQTextBadini} onChange={(e) => setNewQTextBadini(e.target.value)} className={inputClass} placeholder="پرسیار..." dir="rtl" />
+                </div>
+                <div>
+                  <Label className="text-white/40 text-[10px] mb-1 block">{t(lang, 'questionTextSorani')}</Label>
+                  <Input value={newQTextSorani} onChange={(e) => setNewQTextSorani(e.target.value)} className={inputClass} placeholder="پرسیار..." dir="rtl" />
+                </div>
+              </div>
+
+              {/* Options */}
+              {[1, 2, 3, 4].map((idx) => (
+                <div key={idx} className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-white/40 text-[10px] mb-1 block">{t(lang, 'optionBadini')} {idx}</Label>
+                    <Input
+                      value={idx === 1 ? newQOpt1Badini : idx === 2 ? newQOpt2Badini : idx === 3 ? newQOpt3Badini : newQOpt4Badini}
+                      onChange={(e) => {
+                        if (idx === 1) setNewQOpt1Badini(e.target.value)
+                        else if (idx === 2) setNewQOpt2Badini(e.target.value)
+                        else if (idx === 3) setNewQOpt3Badini(e.target.value)
+                        else setNewQOpt4Badini(e.target.value)
+                      }}
+                      className={inputClass}
+                      placeholder={`هەڵبژارتن ${idx}`}
+                      dir="rtl"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-white/40 text-[10px] mb-1 block">{t(lang, 'optionSorani')} {idx}</Label>
+                    <Input
+                      value={idx === 1 ? newQOpt1Sorani : idx === 2 ? newQOpt2Sorani : idx === 3 ? newQOpt3Sorani : newQOpt4Sorani}
+                      onChange={(e) => {
+                        if (idx === 1) setNewQOpt1Sorani(e.target.value)
+                        else if (idx === 2) setNewQOpt2Sorani(e.target.value)
+                        else if (idx === 3) setNewQOpt3Sorani(e.target.value)
+                        else setNewQOpt4Sorani(e.target.value)
+                      }}
+                      className={inputClass}
+                      placeholder={`هەڵبژاردن ${idx}`}
+                      dir="rtl"
+                    />
+                  </div>
+                </div>
+              ))}
+
+              {/* Correct Answer */}
+              <div>
+                <Label className="text-white/40 text-[10px] mb-1 block">{t(lang, 'correctOption')}</Label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4].map((idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setNewQCorrect(idx)}
+                      className={`w-10 h-10 rounded-xl text-sm font-bold transition-all ${
+                        newQCorrect === idx
+                          ? 'bg-green-500/20 border-2 border-green-500/50 text-green-300'
+                          : 'bg-white/5 border border-white/10 text-white/40 hover:bg-white/10'
+                      }`}
+                    >
+                      {idx}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <Button onClick={handleAddQuestion} disabled={!newQTextBadini.trim() || !newQCatId} className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl text-sm">
+                <Plus className="w-4 h-4 mr-1.5" />
+                {t(lang, 'addQuestion')}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Questions List */}
+          <Card className="bg-white/[0.04] backdrop-blur-xl border-white/10 shadow-xl overflow-hidden">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between" dir="rtl">
+                <h3 className="text-white/70 text-sm font-bold">{t(lang, 'manageQuestions')}</h3>
+                <select
+                  value={selectedCatForQuestions}
+                  onChange={(e) => { setSelectedCatForQuestions(e.target.value); refetchQuestions() }}
+                  className="bg-white/5 border border-white/10 text-white/60 rounded-lg text-[10px] px-2 py-1 appearance-none cursor-pointer"
+                >
+                  <option value="" className="bg-[#0d1442]">{t(lang, 'allCategories')}</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id} className="bg-[#0d1442]">{cat.nameBadini}</option>
+                  ))}
+                </select>
+              </div>
+
+              <ScrollArea className="max-h-[400px]">
+                <div className="space-y-2">
+                  {questions.map((q, idx) => {
+                    const catName = lang === 'badini' ? q.category.nameBadini : q.category.nameSorani
+                    return (
+                      <div key={q.id} className="flex items-start justify-between gap-2 p-3 bg-white/[0.03] border border-white/5 rounded-xl" dir="rtl">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <Badge className="bg-purple-500/10 text-purple-300/60 border-purple-500/15 text-[8px] px-1 py-0">{catName}</Badge>
+                            <span className="text-[8px] text-green-400/50">{t(lang, 'correctOption')}: {q.correctAnswer}</span>
+                          </div>
+                          <p className="text-white/70 text-xs line-clamp-2">{lang === 'badini' ? q.textBadini : q.textSorani}</p>
+                        </div>
+                        <Button
+                          onClick={() => handleDeleteQuestion(q.id)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded-lg h-7 w-7 p-0 flex-shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )
+                  })}
+                  {questions.length === 0 && (
+                    <div className="text-center py-6">
+                      <BookOpen className="w-8 h-8 text-white/15 mx-auto mb-1" />
+                      <p className="text-white/25 text-xs" dir="rtl">{t(lang, 'noQuestions')}</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </motion.div>
   )
 }

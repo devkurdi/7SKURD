@@ -40,6 +40,7 @@ model Participant {
   id        String   @id @default(cuid())
   name      String
   avatar    String?
+  scores    Score[]
   answers   Answer[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -56,4 +57,15 @@ model Answer {
   createdAt      DateTime    @default(now())
 
   @@unique([participantId, questionId])
+}
+
+model Score {
+  id            String      @id @default(cuid())
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  points        Int
+  correctCount  Int
+  totalAnswered Int
+  categoryId    String?
+  createdAt     DateTime    @default(now())
 }

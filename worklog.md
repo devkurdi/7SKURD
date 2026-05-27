@@ -1,29 +1,33 @@
+# Worklog - 7S SQUAD PSYAR Quiz App
+
 ---
 Task ID: 1
-Agent: main
-Task: Complete rewrite of 7S SQUAD PSYAR quiz app with new features
+Agent: Main Agent
+Task: Complete redesign of quiz app with separated sections (Questions, TOP) and DB-driven questions
 
 Work Log:
-- Read and analyzed all existing project files (page.tsx, store.ts, schema.prisma, API routes)
-- Updated Zustand store: changed 'welcome' view to 'home', added 'top' view for leaderboard
-- Completely rewrote page.tsx with new architecture:
-  - NavBar component with HOME/QUIZ/TOP navigation tabs
-  - ADMIN PANEL button on top-right with modal password login
-  - Language toggle (Badini/Surani) on top-left
-  - HomePage: Beautiful professional design with name input + visual feedback (green checkmark), avatar upload, category selection, start button, mini TOP 5 leaderboard
-  - QuizPage: Sequential question flow, 120s timer, correct/wrong/timeout visual feedback, auto-advance, 10 points per correct answer
-  - TopPage: Full leaderboard showing up to 100 players with search, ranked by score, gold/silver/bronze badges, player name + points + avatar
-  - ResultsPage: Score summary with percentage, correct/wrong counts, retry/home buttons
-  - AdminPage: Password-protected (00998877), tabbed UI for categories and questions CRUD
-- Added new translation keys: homeTab, quizTab, topTab, rank, searchPlayer, noPlayersYet, totalPoints, welcomeBack, profileSection, enterNameToStart
-- Fixed missing lucide-react icon (Ranking) - removed unused import
-- Cleaned up unused icon imports (Brain, Flame, ChevronLeft, ArrowRight)
-- Build verified successfully with no errors
+- Read all existing project files (schema, page.tsx, store.ts, API routes)
+- Updated Prisma schema to add Score model for leaderboard persistence
+- Ran prisma db push --force-reset to apply schema changes
+- Updated seed data with 6 categories (ئایینی, زانستی, مێژوویی, جوگرافی, وەرزشی, گشتی) and 22 questions
+- Created /api/scores route for saving quiz results
+- Updated /api/leaderboard route to use Score model
+- Rewrote store.ts with new TabView system (home, questions, top, quiz, results, admin)
+- Completely rewrote page.tsx with 6 sections:
+  - HOME: Welcome, profile (name+avatar), category cards to start quiz, mini TOP 5
+  - Questions Browser: Browse all questions by category with filter tabs
+  - TOP: Full leaderboard with podium for top 3, scrollable list for rest
+  - Quiz: Sequential quiz with DB questions, 120s timer, 10 points per correct answer
+  - Results: Score summary with visual feedback
+  - Admin Panel: CRUD for categories and questions (password: 00998877)
+- All questions come from the database (NOT hardcoded)
+- All text in Badini Kurdish
+- Build successful with no errors
+- Server running and all APIs tested
 
 Stage Summary:
-- Complete rewrite of page.tsx (~900 lines) with all user-requested features
-- HOME page with professional design, name input with visual feedback, ADMIN PANEL on top-right
-- TOP leaderboard page showing 1-100 players with names and points
-- Sequential quiz flow with 10 points per correct answer
-- All text in Badini Kurdish with Surani support
-- Build passes successfully
+- App fully redesigned with separated sections
+- Questions stored in DB and manageable through Admin Panel
+- Leaderboard persisted to DB via Score model
+- 6 categories with 22 questions seeded
+- All APIs working: /api/categories, /api/questions, /api/leaderboard, /api/scores, /api/participants, /api/answers, /api/admin, /api/seed
